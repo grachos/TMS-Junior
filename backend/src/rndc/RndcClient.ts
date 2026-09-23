@@ -37,6 +37,13 @@ export const TIPO_INGRESAR = '1'; // Registrar info en procesos y maestros
 export const TIPO_CONSULTAR_MAESTRO = '2'; // Consultar registros de maestros
 export const TIPO_CONSULTAR_PROCESO = '3'; // Consultar documentos/registros de un proceso
 
+/**
+ * Tipo exclusivo del webservice REST de consulta de PDF (sección 9 de la
+ * guía) — no aplica al resto del cliente, que es todo SOAP. Ver
+ * consultarPdfManifiesto() y docs/RNDC.md.
+ */
+const TIPO_CONSULTAR_PDF_REST = '21';
+
 /** Procesos enrutados a servidores específicos en producción. */
 const PROCESOS_EXPEDIR = [3, 4]; // Remesa, Manifiesto
 const PROCESOS_CONSULTAS = [26, 27, 48, 55]; // Consultas
@@ -49,6 +56,17 @@ const HOSTS = {
   consultas: 'http://plc.mintransporte.gov.co:8080',
   otros: 'http://rndcws.mintransporte.gov.co:8080',
 } as const;
+
+/**
+ * Webservice REST (JSON sobre HTTP plano, no SOAP) para consultar el PDF de
+ * un proceso ya radicado. Mismo host que "consultas" pero puerto y protocolo
+ * distintos — el RNDC no lo expone por ambiente pruebas/producción, así que
+ * no hay variante aquí. Ver docs/RNDC.md.
+ */
+const REST_CONSULTA_PDF_URL = 'http://plc.mintransporte.gov.co:8081/Rest/rndc';
+
+/** Resultado de consultarPdfManifiesto(). */
+export type RndcPdfResultado = { ok: true; pdf: Buffer; crudo: string } | { ok: false; error: string; crudo: string };
 
 export class RndcClient {
   constructor(
@@ -203,6 +221,82 @@ export class RndcClient {
     }
     const datos = this.parsearDocumentos(ret);
     return RndcRespuesta.exito('', httpCode, ret, xmlInterno, datos);
+  }
+
+  /**
+   * Consulta el PDF ya generado por el RNDC para un manifiesto radicado, vía
+   * su webservice REST (`:8081/Rest/rndc`, JSON) — un canal aparte del SOAP
+   * que usa el resto de este cliente. `ingresoId` es el radicado que el RNDC
+   * asignó al aceptar el manifiesto (columna `manifiesto.rndc_ingreso_id`).
+   *
+   * La guía del RNDC (sección 9) solo documenta la forma del REQUEST; no
+   * publica el esquema exacto del JSON de respuesta. `interpretarRespuestaPdf`
+   * busca el PDF en base64 / el mensaje de error bajo las variantes de nombre
+   * de campo más plausibles en vez de asumir una forma exacta — si el RNDC
+   * responde con un campo no contemplado, `crudo` trae el JSON completo para
+   * ajustarlo.
+   */
+  async consultarPdfManifiesto(ingresoId: string, informeId = '1'): Promise<RndcPdfResultado> {
+    const cuerpo = {
+      acceso: { usuario: this.username, clave: this.password },
+      solicitud: { tipo: TIPO_CONSULTAR_PDF_REST, procesoid: '4' },
+      documento: { IngresoId: ingresoId, InformeId: informeId, formato: 'Json', Base64: 'S' },
+    };
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeout * 1000);
+    let crudo: string;
+    try {
+      const res = await fetch(REST_CONSULTA_PDF_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cuerpo),
+        signal: controller.signal,
+      });
+      crudo = await res.text();
+      if (!res.ok) {
+        return { ok: false, error: `HTTP ${res.status}`, crudo };
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const cause = e instanceof Error && e.cause ? (e.cause instanceof Error ? e.cause.message : String(e.cause)) : null;
+      console.error('RNDC consultarPdfManifiesto error:', e);
+      return { ok: false, error: `Error de conexión: ${msg}${cause ? ` (${cause})` : ''}`, crudo: '' };
+    } finally {
+      clearTimeout(timer);
+    }
+
+    let json: unknown;
+    try {
+      json = JSON.parse(crudo);
+    } catch {
+      return { ok: false, error: 'Respuesta del RNDC no es JSON válido.', crudo };
+    }
+    return RndcClient.interpretarRespuestaPdf(json, crudo);
+  }
+
+  /** Ver el comentario de consultarPdfManifiesto(). */
+  private static interpretarRespuestaPdf(json: unknown, crudo: string): RndcPdfResultado {
+    if (typeof json !== 'object' || json === null) {
+      return { ok: false, error: 'Respuesta del RNDC con formato inesperado.', crudo };
+    }
+    const obj = json as Record<string, unknown>;
+
+    for (const clave of ['ErrorMSG', 'errormsg', 'error', 'Error', 'mensaje', 'Mensaje']) {
+      const valor = obj[clave];
+      if (typeof valor === 'string' && valor.trim() !== '') {
+        return { ok: false, error: valor.trim(), crudo };
+      }
+    }
+
+    for (const clave of ['archivo', 'Archivo', 'pdf', 'Pdf', 'base64', 'Base64', 'contenido', 'Contenido', 'data', 'Data']) {
+      const valor = obj[clave];
+      if (typeof valor === 'string' && valor.length > 100) {
+        return { ok: true, pdf: Buffer.from(valor, 'base64'), crudo };
+      }
+    }
+
+    return { ok: false, error: 'La respuesta del RNDC no trajo un PDF reconocible.', crudo };
   }
 
   /** Convierte la respuesta de consulta en filas asociativas (una por <documento>). */

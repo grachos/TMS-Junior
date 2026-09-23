@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Truck, Loader2, FileText, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Pencil, Truck, Loader2, FileText, FileSpreadsheet, FileCheck2 } from 'lucide-react';
 import { api, ApiError, openAuthedFile } from '../../lib/api';
 import { Alert } from '../../components/Alert';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -143,6 +143,19 @@ export default function SolicitudDetalle() {
               <button className="btn-ghost px-2 py-1 text-xs" onClick={() => openAuthedFile(`/remesa/${data.manifiesto!.id}/pdf`).catch(() => {})}>
                 <FileSpreadsheet size={14} /> Remesa PDF
               </button>
+              {data.manifiesto.rndc_ingreso_id && (
+                <button
+                  className="btn-ghost px-2 py-1 text-xs"
+                  title="PDF oficial del RNDC"
+                  onClick={() =>
+                    openAuthedFile(`/manifiesto/${data.manifiesto!.id}/pdf-rndc`).catch((e) =>
+                      setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo obtener el PDF del RNDC.' }),
+                    )
+                  }
+                >
+                  <FileCheck2 size={14} /> PDF RNDC
+                </button>
+              )}
             </div>
           </div>
           <dl className="grid gap-4 sm:grid-cols-3">

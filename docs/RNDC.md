@@ -69,8 +69,10 @@ Tabla oficial del Ministerio ("Balanceo de Carga a los Servidores del RNDC"),
 >
 > Además del ambiente programático hay **wstest** (sin programar):
 > `https://rndc.mintransporte.gov.co/wstest/default.aspx` (y default2/default3 para
-> apuntar a rndcws2 / plc). También existen endpoints REST (`:8081` HTTP,
-> `inside.mintransporte.gov.co:443` HTTPS) que este cliente no usa (solo SOAP).
+> apuntar a rndcws2 / plc). También existe un endpoint REST en `:8081`
+> (`inside.mintransporte.gov.co:443` HTTPS es otro que este cliente no usa) —
+> el cliente sí lo usa para una cosa puntual: consultar el PDF de un
+> manifiesto ya radicado (ver [Consulta de PDF por REST](#consulta-de-pdf-por-rest) abajo).
 
 El cliente resuelve el endpoint automáticamente con `RNDC_AMBIENTE`
 (`pruebas` | `produccion`) y enruta por `procesoid`. Se puede forzar con
@@ -148,3 +150,68 @@ foreach ($resp->datos as $fila) {
 
 **Verificado** (2026-06-18): consulta del manifiesto `0102002560` devolvió placa
 `KSO581`, flete `2198000`, ingresoid `119855230`.
+
+## Consulta de PDF por REST
+
+A diferencia de todo lo anterior (SOAP), el RNDC expone un webservice **REST**
+aparte (sección 9 de la guía) para traer el PDF ya generado de un proceso
+radicado. Endpoint:
+
+```
+POST http://plc.mintransporte.gov.co:8081/Rest/rndc
+Content-Type: application/json
+```
+
+Cuerpo:
+
+```json
+{
+  "acceso": { "usuario": "xxxxxxx@1111", "clave": "11111" },
+  "solicitud": { "tipo": "21", "procesoid": "4" },
+  "documento": {
+    "IngresoId": "111111",
+    "InformeId": "1",
+    "formato": "Json",
+    "Base64": "S"
+  }
+}
+```
+
+| Campo | Significado |
+|---|---|
+| `tipo` | `21` — fijo, "consultar el PDF de un proceso" (no es ninguno de los tipos SOAP de arriba). |
+| `procesoid` | `4` — el mismo procesoid del Manifiesto que usa el resto del cliente. |
+| `IngresoId` | El **radicado** que el RNDC asignó al aceptar el documento (`manifiesto.rndc_ingreso_id`), no el número de manifiesto interno. |
+| `InformeId` | `1` (único valor documentado hoy; la guía deja la puerta abierta a otros diseños de PDF en el futuro). |
+| `formato` | `"Json"` — pide tecnología REST en vez de SOAP. |
+| `Base64` | `"S"` para recibir el PDF como texto base64 (recomendado); `"N"` para el PDF crudo. Este cliente siempre pide `"S"`. |
+
+Las credenciales (`usuario`/`clave`) son las mismas de `maestro_empresa`
+(`rndc_username`/`rndc_password`) que usa el resto del cliente — no hay
+variables de entorno nuevas para esto.
+
+> **El esquema del JSON de respuesta no está documentado** — la guía solo
+> especifica el REQUEST. `RndcClient.consultarPdfManifiesto()` busca el PDF en
+> base64 (o un mensaje de error) bajo varias variantes de nombre de campo
+> plausibles en vez de asumir una forma exacta, y siempre conserva el JSON
+> crudo para diagnosticar si el RNDC responde con un campo no contemplado.
+> Ajusta `interpretarRespuestaPdf()` en `backend/src/rndc/RndcClient.ts` en
+> cuanto se vea una respuesta real.
+
+Uso (TypeScript):
+
+```ts
+const rndc = await RndcClient.desdeConfig();
+const resultado = await rndc.consultarPdfManifiesto(manifiesto.rndc_ingreso_id);
+if (resultado.ok) {
+  // resultado.pdf es un Buffer con los bytes del PDF.
+} else {
+  console.error(resultado.error, resultado.crudo);
+}
+```
+
+Expuesto en la API como `GET /api/manifiesto/:id/pdf-rndc` (requiere que el
+manifiesto ya tenga `rndc_ingreso_id`, es decir que el RNDC ya lo haya
+aceptado) — ver `backend/src/modules/pdf/pdf.routes.ts`. Distinto de
+`GET /api/manifiesto/:id/pdf`, que renderiza nuestra propia réplica del
+formato oficial sin llamar al RNDC.

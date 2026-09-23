@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Truck, Search, Send, Loader2, FileText, FileSpreadsheet, Pencil, QrCode, Ban, X, TriangleAlert } from 'lucide-react';
+import { Truck, Search, Send, Loader2, FileText, FileSpreadsheet, FileCheck2, Pencil, QrCode, Ban, X, TriangleAlert } from 'lucide-react';
 import { api, ApiError, openAuthedFile } from '../../lib/api';
 import { useAuthStore } from '../../store/auth';
 import { Pagination } from '../../components/Pagination';
@@ -216,6 +216,15 @@ export default function DespachosList() {
                           >
                             <FileSpreadsheet size={15} />
                           </button>
+                          {d.estado_manifiesto === 'aceptado' && (
+                            <button
+                              className="btn-ghost px-2 py-1"
+                              title="PDF oficial del RNDC"
+                              onClick={() => openAuthedFile(`/manifiesto/${d.manifiesto_id}/pdf-rndc`).catch((e) => setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo obtener el PDF del RNDC.' }))}
+                            >
+                              <FileCheck2 size={15} />
+                            </button>
+                          )}
                         </>
                       )}
                       {d.manifiesto_id &&

@@ -38,6 +38,17 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
   return url.pathname + url.search;
 }
 
+/** Best-effort extraction of the `{ error }` JSON body the backend sends on failure. */
+async function errorMessage(res: Response): Promise<string> {
+  try {
+    const data = await res.clone().json();
+    if (data && typeof data.error === 'string' && data.error.trim() !== '') return data.error;
+  } catch {
+    // Not JSON (or empty body) — fall back to the generic message below.
+  }
+  return `Error ${res.status}`;
+}
+
 /**
  * Fetches a binary/document endpoint with the JWT attached and opens it in a new
  * tab (used for PDFs, which can't use a plain <a href> because that omits the
@@ -52,7 +63,7 @@ export async function openAuthedFile(path: string): Promise<boolean> {
     logout();
     throw new ApiError(401, 'No autenticado.');
   }
-  if (!res.ok) throw new ApiError(res.status, `Error ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const win = window.open(url, '_blank');
@@ -79,7 +90,7 @@ export async function downloadAuthedFile(
     logout();
     throw new ApiError(401, 'No autenticado.');
   }
-  if (!res.ok) throw new ApiError(res.status, `Error ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

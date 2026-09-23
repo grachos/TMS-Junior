@@ -9,7 +9,7 @@
 
 import { Router } from 'express';
 import type { RowDataPacket } from 'mysql2';
-import { asyncHandler, notFound } from '../../http/errors.js';
+import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
 import { db } from '../../db/pool.js';
 import * as municipioRepo from '../municipios/municipio.repo.js';
 import * as catalogoRepo from '../catalogos/catalogo.repo.js';
@@ -19,6 +19,7 @@ import { buildManifiestoQrText, qrPngDataUrl } from './qr.js';
 import { htmlToPdf, pdfEngineAvailable } from './render.js';
 import { consecutivoRemesaRndc } from '../../util/consecutivoRndc.js';
 import { combinarConfiguracionVehiculo } from '../../util/configuracionVehiculo.js';
+import { RndcClient } from '../../rndc/RndcClient.js';
 
 type Row = Record<string, any>;
 
@@ -187,6 +188,39 @@ pdfManifiestoRouter.get(
     });
 
     await send(res, html, `manifiesto_${m.num_manifiesto ?? manifiestoId}`, String(req.query.format ?? ''));
+  }),
+);
+
+/**
+ * GET /api/manifiesto/:id/pdf-rndc
+ *
+ * A diferencia de /pdf (nuestra propia réplica del formato oficial), esto
+ * trae el PDF **directamente del RNDC** por su webservice REST de consulta
+ * (sección 9 de la guía — ver docs/RNDC.md), usando el radicado
+ * (`rndc_ingreso_id`) que el RNDC asignó al aceptar el manifiesto. Solo
+ * funciona una vez el manifiesto está aceptado.
+ */
+pdfManifiestoRouter.get(
+  '/:id/pdf-rndc',
+  asyncHandler(async (req, res) => {
+    const manifiestoId = Number(req.params.id);
+    const m = await one('SELECT id, num_manifiesto, rndc_ingreso_id FROM manifiesto WHERE id = ?', [manifiestoId]);
+    if (!m) throw notFound('Manifiesto no encontrado.');
+    if (!m.rndc_ingreso_id) {
+      throw badRequest('Este manifiesto todavía no tiene radicado del RNDC (no ha sido aceptado).');
+    }
+
+    const client = await RndcClient.desdeConfig();
+    const resultado = await client.consultarPdfManifiesto(String(m.rndc_ingreso_id));
+    if (!resultado.ok) {
+      throw badRequest(`RNDC: ${resultado.error}`);
+    }
+
+    res.type('application/pdf').setHeader(
+      'Content-Disposition',
+      `inline; filename="manifiesto_rndc_${m.num_manifiesto ?? manifiestoId}.pdf"`,
+    );
+    res.send(resultado.pdf);
   }),
 );
 

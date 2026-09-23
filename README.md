@@ -116,7 +116,10 @@ EMF, consecutivos).
 
 **Documents** — Manifiesto & Remesa **PDFs** rendered from the ported templates,
 with the **RNDC QR** (structured MEC text) and the *seguridad* code; falls back to
-printable HTML when no browser is available.
+printable HTML when no browser is available. Once a manifiesto is **aceptado**,
+its **official RNDC PDF** can also be fetched live from the Ministry's own REST
+webservice (`/manifiesto/:id/pdf-rndc`) instead of our local replica — see
+[docs/RNDC.md](docs/RNDC.md#consulta-de-pdf-por-rest).
 
 **Insights** — **Dashboard** (Recharts: queue by status, dispatches over time,
 solicitudes by status + KPIs) and **Informe** — a filterable report at two levels
@@ -193,7 +196,7 @@ All routes are under `/api` and require a Bearer JWT (except `/api/health` and
 | Operación | `GET/POST/PUT /solicitudes`, `POST /solicitudes/:id/despachar`, `GET /despachos` |
 | Cola | `GET /cola`, `POST /cola/procesar` *(admin)*, `POST /cola/:id/procesar` *(admin)*, `GET /cola/:id/xml` |
 | Cumplido | `GET /cumplido`, `GET/POST /cumplido/:manifiestoId` |
-| Docs | `GET /manifiesto/:id/pdf`, `GET /remesa/:manifiestoId/pdf` |
+| Docs | `GET /manifiesto/:id/pdf`, `GET /remesa/:manifiestoId/pdf`, `GET /manifiesto/:id/pdf-rndc` (official PDF fetched live from the RNDC's REST webservice, once accepted) |
 | Insights | `GET /stats`, `GET /informe`, `GET /informe/csv` |
 
 ## Authentication & roles
