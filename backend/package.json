@@ -18,7 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@xmldom/xmldom": "^0.9.10",
+    "@xmldom/xmldom": "^0.9.12",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
