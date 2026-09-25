@@ -146,19 +146,18 @@ export default function SolicitudDetalle() {
               <button className="btn-ghost px-2 py-1 text-xs" onClick={() => openAuthedFile(`/remesa/${data.manifiesto!.id}/pdf`).catch(() => {})}>
                 <FileSpreadsheet size={14} /> Remesa PDF
               </button>
-              {data.manifiesto.rndc_ingreso_id && (
-                <button
-                  className="btn-ghost px-2 py-1 text-xs"
-                  title="PDF oficial del RNDC"
-                  onClick={() =>
-                    openAuthedFile(`/manifiesto/${data.manifiesto!.id}/pdf-rndc`).catch((e) =>
-                      setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo obtener el PDF del RNDC.' }),
-                    )
-                  }
-                >
-                  <FileCheck2 size={14} /> PDF RNDC
-                </button>
-              )}
+              <button
+                className="btn-ghost px-2 py-1 text-xs"
+                title={data.manifiesto.rndc_ingreso_id ? 'PDF oficial del RNDC' : 'PDF oficial del RNDC (disponible una vez aceptado)'}
+                disabled={!data.manifiesto.rndc_ingreso_id}
+                onClick={() =>
+                  openAuthedFile(`/manifiesto/${data.manifiesto!.id}/pdf-rndc`).catch((e) =>
+                    setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo obtener el PDF del RNDC.' }),
+                  )
+                }
+              >
+                <FileCheck2 size={14} /> PDF RNDC
+              </button>
             </div>
           </div>
           <dl className="grid gap-4 sm:grid-cols-3">

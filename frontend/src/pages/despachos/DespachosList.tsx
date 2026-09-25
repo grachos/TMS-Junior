@@ -216,15 +216,14 @@ export default function DespachosList() {
                           >
                             <FileSpreadsheet size={15} />
                           </button>
-                          {d.estado_manifiesto === 'aceptado' && (
-                            <button
-                              className="btn-ghost px-2 py-1"
-                              title="PDF oficial del RNDC"
-                              onClick={() => openAuthedFile(`/manifiesto/${d.manifiesto_id}/pdf-rndc`).catch((e) => setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo obtener el PDF del RNDC.' }))}
-                            >
-                              <FileCheck2 size={15} />
-                            </button>
-                          )}
+                          <button
+                            className="btn-ghost px-2 py-1"
+                            title={d.estado_manifiesto === 'aceptado' ? 'PDF oficial del RNDC' : 'PDF oficial del RNDC (disponible una vez aceptado)'}
+                            disabled={d.estado_manifiesto !== 'aceptado'}
+                            onClick={() => openAuthedFile(`/manifiesto/${d.manifiesto_id}/pdf-rndc`).catch((e) => setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo obtener el PDF del RNDC.' }))}
+                          >
+                            <FileCheck2 size={15} />
+                          </button>
                         </>
                       )}
                       {d.manifiesto_id &&
