@@ -246,7 +246,7 @@ export async function encolarCumplido(
   const manif = await fila(conn, 'SELECT * FROM manifiesto WHERE id = ?', [manifiestoId]);
   if (manif !== null && !manif.cumplido_rndc_ingreso_id) {
     await reemplazarColaPendiente(conn, manifiestoId, 'cumplido_manifiesto', manifiestoId);
-    await insertarCola(conn, solicitudId, manifiestoId, 'cumplido_manifiesto', manifiestoId, await payloadCumplidoManifiesto(manif));
+    await insertarCola(conn, solicitudId, manifiestoId, 'cumplido_manifiesto', manifiestoId, await payloadCumplidoManifiesto(manif, conn));
   }
 }
 
@@ -1383,6 +1383,23 @@ export async function payloadRemesa(r: Row, conn: Queryable): Promise<string> {
   return RndcClient.renderVariables(vars);
 }
 
+/**
+ * <retencionFuenteManifiesto> is normally the 1% retention on the flete
+ * (manifiesto.retencion_fuente, computed at solicitud time). But a titular
+ * (tenedor del vehículo — who receives that flete payment) under "Régimen
+ * Simple de Tributación" is not subject to ordinary retención en la fuente
+ * (Art. 911 E.T.); the RNDC still requires a non-empty value in that tag, so
+ * the convention is to send the literal "1" instead of the calculation.
+ */
+async function retencionFuenteManifiesto(conn: Queryable, m: Row): Promise<RndcVars[string]> {
+  const titular = await fila(conn, 'SELECT regimen_simple FROM tercero WHERE tipo_id = ? AND num_id = ?', [
+    m.titular_tipo_id ?? '',
+    m.titular_num_id ?? '',
+  ]);
+  if (titular?.regimen_simple === 'S') return '1';
+  return num(m.retencion_fuente);
+}
+
 /** Port of payloadManifiesto(). Exported for real-data parity checks. */
 export async function payloadManifiesto(m: Row, conn: Queryable): Promise<string> {
   let remolque: RndcVars[string] = null;
@@ -1399,6 +1416,8 @@ export async function payloadManifiesto(m: Row, conn: Queryable): Promise<string
     tarifaIca = s?.porcentaje_ica ?? null;
   }
 
+  const retencionFuente = await retencionFuenteManifiesto(conn, m);
+
   const vars: RndcVars = {
     NUMNITEMPRESATRANSPORTE: (await obtenerEmpresa()).nit,
     NUMMANIFIESTOCARGA: m.num_manifiesto,
@@ -1414,7 +1433,7 @@ export async function payloadManifiesto(m: Row, conn: Queryable): Promise<string
     NUMIDCONDUCTOR: m.conductor_num_id,
     VALORFLETEPACTADOVIAJE: num(m.valor_flete_pactado),
     RETENCIONICAMANIFIESTOCARGA: num(tarifaIca),
-    RETENCIONFUENTEMANIFIESTO: num(m.retencion_fuente),
+    RETENCIONFUENTEMANIFIESTO: retencionFuente,
     VALORANTICIPOMANIFIESTO: num(m.valor_anticipo),
     CODMUNICIPIOPAGOSALDO: m.municipio_pago_saldo,
     FECHAPAGOSALDOMANIFIESTO: fecha(m.fecha_pago_saldo),
@@ -1487,7 +1506,7 @@ async function payloadCumplidoRemesa(r: Row): Promise<string> {
 }
 
 /** Port of payloadCumplidoManifiesto(). */
-async function payloadCumplidoManifiesto(m: Row): Promise<string> {
+async function payloadCumplidoManifiesto(m: Row, conn: Queryable): Promise<string> {
   const vars: RndcVars = {
     NUMNITEMPRESATRANSPORTE: (await obtenerEmpresa()).nit,
     NUMMANIFIESTOCARGA: m.num_manifiesto,
@@ -1495,6 +1514,9 @@ async function payloadCumplidoManifiesto(m: Row): Promise<string> {
     // FOPAT (0.1% del valor a pagar) es obligatorio en el cumplido — CMA271/CMA273.
     // Reusa el valor calculado al expedir el manifiesto; se omite si no aplica (null).
     RETENCIONFOPAT: num(m.fopat),
+    // Igual que en el manifiesto de ingreso: "1" literal si el titular está en
+    // Régimen Simple, si no el 1% calculado — ver retencionFuenteManifiesto().
+    RETENCIONFUENTEMANIFIESTO: await retencionFuenteManifiesto(conn, m),
     FECHAENTREGADOCUMENTOS: fecha(m.fecha_entrega_documentos),
   };
   let xml = RndcClient.renderVariables(vars);

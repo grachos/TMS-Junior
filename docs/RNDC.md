@@ -89,6 +89,25 @@ El cliente resuelve el endpoint automáticamente con `RNDC_AMBIENTE`
 
 Orden de envío: **Terceros → Vehículo → Remesa → Manifiesto**.
 
+### `retencionFuenteManifiesto` — excepción por Régimen Simple
+
+`<retencionFuenteManifiesto>` (manifiesto, procesoid 4) y `RETENCIONFUENTEMANIFIESTO`
+(cumplido de manifiesto, procesoid 6) normalmente llevan el 1% del flete
+(`manifiesto.retencion_fuente`, calculado al capturar la solicitud). Pero el
+**titular del manifiesto** (`titular_tipo_id`/`titular_num_id` — el tenedor
+del vehículo, quien recibe el pago del flete) puede estar en **Régimen Simple
+de Tributación**, y esos contribuyentes no son sujetos de retención en la
+fuente ordinaria (Art. 911 E.T.). El RNDC igual exige un valor no vacío en
+esa etiqueta, así que la convención es enviar el literal `1` en vez del
+cálculo cuando el tercero titular tiene `regimen_simple = 'S'` (columna
+`tercero.regimen_simple`, editable en el formulario de Tercero).
+
+Implementado en `retencionFuenteManifiesto()` (`backend/src/modules/cola/cola.repo.ts`),
+usado tanto por `payloadManifiesto()` como por `payloadCumplidoManifiesto()`
+(este último no enviaba la etiqueta en absoluto antes de este cambio). El
+formulario de Solicitud ya no pide/muestra este valor manualmente — es
+enteramente calculado en el backend, igual que ICA y FOPAT.
+
 El diccionario completo de variables oficiales está en:
 - `docs/diccionario_rndc.csv` (fuente, UTF-8)
 - `src/Rndc/Diccionario.php` (generado, usado por el código)

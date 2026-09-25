@@ -352,10 +352,6 @@ export default function SolicitudForm() {
               <input className="field-input bg-slate-50" readOnly value={ret.retencion_ica.toFixed(2)} />
             </div>
             <div>
-              <label className="field-label">Retención en la fuente (1%)</label>
-              <input className="field-input bg-slate-50" readOnly value={ret.retencion_fuente.toFixed(2)} />
-            </div>
-            <div>
               <label className="field-label">FOPAT (0.1%)</label>
               <input className="field-input bg-slate-50" readOnly value={ret.fopat.toFixed(2)} />
             </div>
