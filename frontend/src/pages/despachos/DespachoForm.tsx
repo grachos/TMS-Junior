@@ -208,7 +208,10 @@ export default function DespachoForm() {
     );
   }
 
-  const volver = () => navigate(editar ? '/despachos' : `/solicitudes/${id}`);
+  // encodeURIComponent: `id` comes straight from the URL (useParams) — never
+  // re-embed it raw into a navigation target (GHSA-wrjc-x8rr-h8h6, open
+  // redirect via backslash in react-router's <Link>/useNavigate).
+  const volver = () => navigate(editar ? '/despachos' : `/solicitudes/${encodeURIComponent(id ?? '')}`);
 
   const pesoTotalSolicitud = Number(sol?.peso ?? 0);
   const pesoDisponible = sol?.peso_disponible != null ? Number(sol.peso_disponible) : pesoTotalSolicitud;

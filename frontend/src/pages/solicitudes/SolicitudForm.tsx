@@ -173,7 +173,10 @@ export default function SolicitudForm() {
         navigate(`/solicitudes/${newId}?ok=` + encodeURIComponent('Solicitud creada.'));
         return;
       }
-      navigate(`/solicitudes/${id}?ok=` + encodeURIComponent('Solicitud actualizada.'));
+      // encodeURIComponent(id): `id` comes straight from the URL (useParams) —
+      // never re-embed it raw into a navigation target (GHSA-wrjc-x8rr-h8h6,
+      // open redirect via backslash in react-router's <Link>/useNavigate).
+      navigate(`/solicitudes/${encodeURIComponent(id ?? '')}?ok=` + encodeURIComponent('Solicitud actualizada.'));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar la solicitud.');
     } finally {

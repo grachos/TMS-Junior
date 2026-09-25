@@ -93,12 +93,15 @@ export default function SolicitudDetalle() {
         </h1>
         <div className="flex gap-2">
           {s.estado !== 'despachada' && (
-            <Link to={`/solicitudes/${id}/editar`} className="btn-ghost">
+            // encodeURIComponent: `id` comes straight from the URL (useParams) —
+            // never re-embed it raw into a navigation target (GHSA-wrjc-x8rr-h8h6,
+            // open redirect via backslash in react-router's <Link>/useNavigate).
+            <Link to={`/solicitudes/${encodeURIComponent(id ?? '')}/editar`} className="btn-ghost">
               <Pencil size={16} /> Editar
             </Link>
           )}
           {despachable && (
-            <Link to={`/solicitudes/${id}/despachar`} className="btn-primary">
+            <Link to={`/solicitudes/${encodeURIComponent(id ?? '')}/despachar`} className="btn-primary">
               <Truck size={16} /> Confirmar despacho
             </Link>
           )}
