@@ -1379,6 +1379,10 @@ export async function payloadRemesa(r: Row, conn: Queryable): Promise<string> {
     codSedePropietario: await sedeTercero(conn, r.propietario_tipo_id, r.propietario_num_id),
     CODIGOUN: r.codigo_un,
     ESTADOMERCANCIA: r.estado_producto,
+    // Obligatorio cuando codOperacionTransporte es C (Contenedor Cargado) o V
+    // (Contenedor Vacío) — ver validarContenedorSerial(); omitido (renderVariables
+    // salta valores vacíos) para General/Paqueteo.
+    CONTENEDORSERIAL: r.contenedor_serial,
   };
   return RndcClient.renderVariables(vars);
 }

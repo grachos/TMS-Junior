@@ -30,7 +30,7 @@ const CAMPOS_DESPACHO = [
 
 /** Whitelisted capture fields (mirror SolicitudRepo::CAMPOS). */
 const CAMPOS = [
-  'consecutivo', 'fecha_solicitud', 'operacion_transporte', 'tipo_viaje',
+  'consecutivo', 'fecha_solicitud', 'operacion_transporte', 'contenedor_serial', 'tipo_viaje',
   'municipio_pago_saldo',
   'remitente_tipo_id', 'remitente_num_id',
   'destinatario_tipo_id', 'destinatario_num_id',
@@ -68,6 +68,7 @@ async function prepararFila(datos: Row): Promise<Record<string, SqlValue>> {
     fila[c] = valor === '' || valor === undefined || valor === null ? null : (valor as SqlValue);
   }
   if (!fila.fecha_solicitud) fila.fecha_solicitud = hoy();
+  if (fila.contenedor_serial) fila.contenedor_serial = String(fila.contenedor_serial).trim().toUpperCase();
 
   // Retentions computed on the server (not trusted from the client).
   const flete = Number(fila.valor_flete ?? 0) || 0;
@@ -173,6 +174,7 @@ async function sembrarRemesa(conn: Queryable, solicitudId: number, rd: Row, s: R
     solicitud_id: solicitudId,
     num_remesa: rd.num_remesa ?? null,
     operacion_transporte: s.operacion_transporte ?? null,
+    contenedor_serial: s.contenedor_serial ?? null,
     naturaleza_carga: rd.naturaleza_carga ?? null,
     tipo_empaque: rd.tipo_empaque ?? null,
     mercancia_codigo: rd.mercancia_codigo ?? null,

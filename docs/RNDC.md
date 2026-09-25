@@ -108,6 +108,22 @@ usado tanto por `payloadManifiesto()` como por `payloadCumplidoManifiesto()`
 formulario de Solicitud ya no pide/muestra este valor manualmente — es
 enteramente calculado en el backend, igual que ICA y FOPAT.
 
+### `CONTENEDORSERIAL` — obligatorio en Contenedor Cargado/Vacío
+
+La Remesa (procesoid 3) exige `<CONTENEDORSERIAL>` (serial ISO 6346 de 11
+caracteres, p.ej. `SMLU7924873`) cuando `codOperacionTransporte` es
+**C** (Contenedor Cargado) o **V** (Contenedor Vacío). Se captura una vez en
+el formulario de Solicitud (`solicitud_servicio.contenedor_serial`, migración
+v46) — igual que `dueno_poliza` — y se copia a cada remesa sembrada al
+confirmar el despacho. Validado en ambos lados: `validarContenedorSerial()`
+(`backend/src/util/validaciones.ts`, servidor) y un aviso equivalente en
+`SolicitudForm.tsx` (cliente) que bloquea el guardado si falta o no tiene
+exactamente 11 caracteres.
+
+> **Nota aparte, no relacionada con este cambio:** `payloadRemesa()` también
+> envía `pesoContenedorVacio` **hardcoded a `'2100'` para toda remesa, no solo
+> las de contenedor** — vale la pena revisarlo por separado.
+
 El diccionario completo de variables oficiales está en:
 - `docs/diccionario_rndc.csv` (fuente, UTF-8)
 - `src/Rndc/Diccionario.php` (generado, usado por el código)

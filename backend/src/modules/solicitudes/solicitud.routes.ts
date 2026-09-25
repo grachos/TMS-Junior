@@ -9,7 +9,7 @@
 
 import { Router } from 'express';
 import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
-import { validarProductoPeligrosa } from '../../util/validaciones.js';
+import { validarProductoPeligrosa, validarContenedorSerial } from '../../util/validaciones.js';
 import { pesoTotalDe } from '../../util/pesoSolicitud.js';
 import { requirePagina } from '../auth/auth.middleware.js';
 import * as repo from './solicitud.repo.js';
@@ -48,6 +48,11 @@ solicitudRouter.post(
       String(req.body?.naturaleza_carga ?? ''),
     );
     if (err) throw badRequest(err);
+    const errContenedor = validarContenedorSerial(
+      String(req.body?.operacion_transporte ?? ''),
+      String(req.body?.contenedor_serial ?? ''),
+    );
+    if (errContenedor) throw badRequest(errContenedor);
     const id = await repo.crear(req.body ?? {});
     res.status(201).json({ id });
   }),
@@ -67,6 +72,11 @@ solicitudRouter.put(
       String(req.body?.naturaleza_carga ?? ''),
     );
     if (err) throw badRequest(err);
+    const errContenedor = validarContenedorSerial(
+      String(req.body?.operacion_transporte ?? ''),
+      String(req.body?.contenedor_serial ?? ''),
+    );
+    if (errContenedor) throw badRequest(errContenedor);
     await repo.actualizar(id, req.body ?? {});
     res.json({ ok: true });
   }),

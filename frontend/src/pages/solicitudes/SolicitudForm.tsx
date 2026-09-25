@@ -29,6 +29,7 @@ const DEFAULTS = {
   consecutivo: '',
   fecha_solicitud: new Date().toISOString().slice(0, 10),
   operacion_transporte: 'G',
+  contenedor_serial: '',
   tipo_viaje: 'NACIONAL',
   observaciones: '',
   remitente_tipo_id: '',
@@ -130,6 +131,15 @@ export default function SolicitudForm() {
     [f.valor_flete, f.porcentaje_ica],
   );
 
+  // The RNDC requires an 11-char (ISO 6346) container serial on the Remesa
+  // when Operación de transporte is Contenedor Cargado (C) o Vacío (V) — the
+  // server enforces the same rule (validarContenedorSerial).
+  const contenedorRequerido = f.operacion_transporte === 'C' || f.operacion_transporte === 'V';
+  const contenedorAviso =
+    contenedorRequerido && f.contenedor_serial.trim().length !== 11
+      ? 'El serial del contenedor es obligatorio (11 caracteres) para Contenedor Cargado/Vacío.'
+      : null;
+
   // Dangerous-goods guard: when Naturaleza = "Carga peligrosa" (2) and a product
   // is chosen, verify it has Código UN + Estado in the catalog. If not, warn the
   // user immediately and block saving (the server enforces the same rule).
@@ -162,6 +172,10 @@ export default function SolicitudForm() {
     setError(null);
     if (peligrosaAviso) {
       setError(peligrosaAviso);
+      return;
+    }
+    if (contenedorAviso) {
+      setError(contenedorAviso);
       return;
     }
     setSaving(true);
@@ -223,6 +237,19 @@ export default function SolicitudForm() {
               <label className="field-label">Operación de transporte</label>
               <Sel name="operacion_transporte" value={f.operacion_transporte} onChange={(v) => set('operacion_transporte', v)} options={OPERACIONES} withEmpty={false} />
             </div>
+            {contenedorRequerido && (
+              <div>
+                <label className="field-label">Serial del contenedor *</label>
+                <input
+                  className="field-input"
+                  maxLength={11}
+                  placeholder="Ej. SMLU7924873"
+                  value={f.contenedor_serial}
+                  onChange={(e) => set('contenedor_serial', e.target.value.toUpperCase())}
+                />
+                {contenedorAviso && <p className="mt-1 text-xs text-amber-600">{contenedorAviso}</p>}
+              </div>
+            )}
             <div>
               <label className="field-label">Tipo de viaje</label>
               <Sel name="tipo_viaje" value={f.tipo_viaje} onChange={(v) => set('tipo_viaje', v)} options={{ NACIONAL: 'Nacional', URBANO: 'Urbano' }} withEmpty={false} />
@@ -371,7 +398,7 @@ export default function SolicitudForm() {
         </fieldset>
 
         <div className="flex items-center gap-3">
-          <button type="submit" className="btn-primary" disabled={saving || !!peligrosaAviso}>
+          <button type="submit" className="btn-primary" disabled={saving || !!peligrosaAviso || !!contenedorAviso}>
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             {editar ? 'Actualizar' : 'Guardar'} solicitud
           </button>
