@@ -130,7 +130,13 @@ retentions.
 
 **Guardrails** — Dangerous‑goods check: choosing *Carga peligrosa* with a product
 missing **Código UN / Estado** warns immediately and blocks saving (enforced again
-on the server). Real RNDC sends are `admin`‑only and gated by the safety switch.
+on the server). Container shipments: choosing *Contenedor Cargado/Vacío* requires
+an 11‑character container serial (`CONTENEDORSERIAL`), also enforced client + server
+— see [docs/RNDC.md](docs/RNDC.md#contenedorserial--obligatorio-en-contenedor-cargadovacío).
+Retención en la fuente is always computed server‑side (1% of flete, or the RNDC's
+required placeholder value when the titular is under *Régimen Simple* — see
+[docs/RNDC.md](docs/RNDC.md#retencionfuentemanifiesto--excepción-por-régimen-simple)),
+never entered manually. Real RNDC sends are `admin`‑only and gated by the safety switch.
 
 ## Requirements
 
