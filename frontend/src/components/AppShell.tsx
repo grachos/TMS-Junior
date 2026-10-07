@@ -31,7 +31,7 @@ import {
 import { useAuthStore, type Pagina } from '../store/auth';
 import { api } from '../lib/api';
 import { useTheme } from '../lib/theme';
-import { useSplash } from '../lib/splash';
+import { logoutWithSplash, useSplash } from '../lib/splash';
 import { ChatWidget } from './ChatWidget';
 import { KonektoMark, KonektoWordmark } from './Logo';
 import { soportePush, suscripcionActual, activarPush, desactivarPush } from '../lib/push';
@@ -159,7 +159,7 @@ function NotificationToggle() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const { user, logout, canAccess, isAdmin } = useAuthStore();
+  const { user, canAccess, isAdmin } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [colaPendientes, setColaPendientes] = useState(0);
@@ -213,8 +213,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   const doLogout = () => {
-    logout();
-    navigate('/login', { replace: true });
+    logoutWithSplash(() => navigate('/login', { replace: true }));
   };
 
   return (

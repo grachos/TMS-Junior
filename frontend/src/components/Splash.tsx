@@ -17,13 +17,12 @@ export function SplashController() {
     if (!el) return;
     if (visible) {
       el.hidden = false;
-      // Next frame, so the opacity transition runs from the hidden state.
-      const raf = requestAnimationFrame(() => el.classList.remove('splash-hide'));
+      // Force a style flush so the opacity transition starts from the faded state
+      // (a transition never runs out of display:none on its own).
+      void el.offsetWidth;
+      el.classList.remove('splash-hide');
       const safety = setTimeout(() => useSplash.getState().hide(0), SAFETY_MS);
-      return () => {
-        cancelAnimationFrame(raf);
-        clearTimeout(safety);
-      };
+      return () => clearTimeout(safety);
     }
     el.classList.add('splash-hide');
     const done = setTimeout(() => {

@@ -6,6 +6,7 @@
  */
 
 import { useAuthStore } from '../store/auth';
+import { logoutWithSplash } from './splash';
 
 const BASE = '/api';
 
@@ -55,12 +56,12 @@ async function errorMessage(res: Response): Promise<string> {
  * Authorization header). Returns false if the popup was blocked.
  */
 export async function openAuthedFile(path: string): Promise<boolean> {
-  const { token, logout } = useAuthStore.getState();
+  const { token } = useAuthStore.getState();
   const res = await fetch(buildUrl(path), {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (res.status === 401) {
-    logout();
+    logoutWithSplash();
     throw new ApiError(401, 'No autenticado.');
   }
   if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
@@ -82,12 +83,12 @@ export async function downloadAuthedFile(
   filename: string,
   query?: RequestOptions['query'],
 ): Promise<void> {
-  const { token, logout } = useAuthStore.getState();
+  const { token } = useAuthStore.getState();
   const res = await fetch(buildUrl(path, query), {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (res.status === 401) {
-    logout();
+    logoutWithSplash();
     throw new ApiError(401, 'No autenticado.');
   }
   if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
@@ -103,7 +104,7 @@ export async function downloadAuthedFile(
 }
 
 export async function api<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const { token, logout } = useAuthStore.getState();
+  const { token } = useAuthStore.getState();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (!opts.anonymous && token) headers.Authorization = `Bearer ${token}`;
 
@@ -114,7 +115,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
   });
 
   if (res.status === 401 && !opts.anonymous) {
-    logout();
+    logoutWithSplash();
   }
 
   const isJson = res.headers.get('content-type')?.includes('application/json');

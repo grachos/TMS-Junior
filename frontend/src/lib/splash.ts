@@ -9,6 +9,7 @@
  */
 
 import { create } from 'zustand';
+import { useAuthStore } from '../store/auth';
 
 const MIN_VISIBLE_MS = 900;
 
@@ -34,3 +35,24 @@ export const useSplash = create<SplashState>((set) => ({
     timer = setTimeout(() => set({ visible: false }), wait);
   },
 }));
+
+/** Time for the splash to become opaque before the page underneath changes. */
+const COVER_MS = 400;
+let closing = false;
+
+/**
+ * Ends the session behind the splash: it fades in first, then the session is
+ * cleared (and `after` runs, e.g. navigate to /login), so the swap to the login
+ * page happens out of sight. Login hides the splash again once its form is ready.
+ * Also used for expired sessions (401), where several requests may fail at once.
+ */
+export function logoutWithSplash(after?: () => void): void {
+  if (closing) return;
+  closing = true;
+  useSplash.getState().show();
+  setTimeout(() => {
+    useAuthStore.getState().logout();
+    after?.();
+    closing = false;
+  }, COVER_MS);
+}
