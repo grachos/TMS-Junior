@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
@@ -31,6 +31,7 @@ import {
 import { useAuthStore, type Pagina } from '../store/auth';
 import { api } from '../lib/api';
 import { useTheme } from '../lib/theme';
+import { useSplash } from '../lib/splash';
 import { ChatWidget } from './ChatWidget';
 import { KonektoMark, KonektoWordmark } from './Logo';
 import { soportePush, suscripcionActual, activarPush, desactivarPush } from '../lib/push';
@@ -160,7 +161,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const { user, logout, canAccess, isAdmin } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [colaPendientes, setColaPendientes] = useState(0);
+
+  // The dashboard hides the splash when its data is in; any other landing page does it here.
+  useEffect(() => {
+    if (location.pathname !== '/') useSplash.getState().hide();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const visibleNav = NAV.map((group) => ({
     ...group,

@@ -8,6 +8,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShell } from './components/AppShell';
+import { SplashController } from './components/Splash';
 import { useAuthStore, type Pagina } from './store/auth';
 import Login from './pages/Login';
 import Inicio from './pages/Inicio';
@@ -51,6 +52,8 @@ function Shell({ children, pagina, adminOnly }: { children: React.ReactNode; pag
 
 export default function App() {
   return (
+    <>
+    <SplashController />
     <Routes>
       <Route path="/login" element={<Login />} />
 
@@ -81,5 +84,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

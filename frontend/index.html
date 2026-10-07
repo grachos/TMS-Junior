@@ -10,6 +10,24 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Konekto</title>
+    <!-- Splash: painted before any JS loads. src/components/Splash.tsx fades it out
+         (and brings it back after login) by toggling `splash-hide` / `hidden`. -->
+    <style>
+      #splash { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center; background: #142B54; transition: opacity 0.6s ease; }
+      html.dark #splash { background: #0C1B38; }
+      #splash[hidden] { display: none; }
+      #splash.splash-hide { opacity: 0; pointer-events: none; }
+      #splash .splash-inner { display: flex; flex-direction: column; align-items: center; color: #fff; text-align: center; animation: splash-in 0.5s ease both; transition: transform 0.6s ease; }
+      #splash.splash-hide .splash-inner { transform: scale(1.08); }
+      #splash svg { width: 150px; height: 150px; animation: splash-pulse 1.8s ease-in-out infinite; }
+      #splash .splash-name { margin-top: 18px; font: 800 56px/1 Inter, 'Segoe UI', system-ui, Roboto, sans-serif; letter-spacing: -0.02em; text-transform: lowercase; }
+      #splash .splash-name span { color: #09B8CD; }
+      #splash .splash-tag { margin-top: 12px; font: 500 14px/1 Inter, 'Segoe UI', system-ui, Roboto, sans-serif; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6); }
+      @keyframes splash-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+      @keyframes splash-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.78; } }
+      @media (prefers-reduced-motion: reduce) { #splash, #splash .splash-inner { animation: none; transition: opacity 0.2s ease; } #splash svg { animation: none; } }
+      @media (max-width: 480px) { #splash svg { width: 110px; height: 110px; } #splash .splash-name { font-size: 42px; } #splash .splash-tag { font-size: 11px; } }
+    </style>
     <!-- Apply the saved/OS theme before first paint so dark mode doesn't flash light. -->
     <script>
       try {
@@ -21,6 +39,24 @@
     </script>
   </head>
   <body>
+    <!-- The mark below mirrors src/components/Logo.tsx (tone="dark"); keep them in sync. -->
+    <div id="splash" role="status" aria-label="Cargando Konekto">
+      <div class="splash-inner">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <path d="M2 8H26L56 50L26 92H2L32 50Z" fill="#fff" />
+          <path d="M26 8H40L70 50H56Z" fill="#09B8CD" />
+          <path d="M56 50H70L40 92H26Z" fill="#1690B3" />
+          <g fill="none" stroke="#3E63A8" stroke-width="9" stroke-linejoin="round"><path d="M99 50H82M82 50C74 50 72 41 66 38M82 50C74 50 72 59 66 62" /></g>
+          <g fill="none" stroke="#fff" stroke-width="1.6" stroke-dasharray="4 3"><path d="M98 50H82M82 50C74 50 72 41 67 38.5M82 50C74 50 72 59 67 61.5" /></g>
+          <path d="M60 36C64 24 72 18 84 18" stroke="#09B8CD" stroke-width="7" fill="none" stroke-linecap="round" />
+          <path d="M60 64C64 76 72 82 84 82" stroke="#11B787" stroke-width="7" fill="none" stroke-linecap="round" />
+          <circle cx="88" cy="18" r="10" fill="#09B8CD" /><circle cx="88" cy="18" r="4.5" fill="#142B54" />
+          <circle cx="88" cy="82" r="10" fill="#11B787" /><circle cx="88" cy="82" r="4.5" fill="#142B54" />
+        </svg>
+        <div class="splash-name">konek<span>to</span></div>
+        <div class="splash-tag">Despacho &amp; RNDC Light</div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

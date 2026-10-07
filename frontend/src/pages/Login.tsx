@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, Loader2 } from 'lucide-react';
 import { KonektoMark, KonektoWordmark } from '../components/Logo';
 import { api, ApiError } from '../lib/api';
+import { useSplash } from '../lib/splash';
 import { useAuthStore, type StaffUser } from '../store/auth';
 
 export default function Login() {
@@ -12,6 +13,11 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // The login form is ready: let the splash fade out.
+  useEffect(() => {
+    useSplash.getState().hide();
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -23,6 +29,7 @@ export default function Login() {
         anonymous: true,
         body: { email, password },
       });
+      useSplash.getState().show(); // covers the dashboard load; Inicio hides it
       setSession(token, user);
       navigate('/', { replace: true });
     } catch (err) {

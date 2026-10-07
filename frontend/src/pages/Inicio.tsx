@@ -18,6 +18,7 @@ import {
 import { FileText, Truck, Send, AlertTriangle, Database, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuthStore } from '../store/auth';
+import { useSplash } from '../lib/splash';
 
 interface Health {
   ok: boolean;
@@ -61,7 +62,8 @@ export default function Inicio() {
     api<Health>('/health', { anonymous: true }).then(setHealth).catch(() => {});
     api<Stats>('/stats')
       .then(setStats)
-      .catch((e) => setErr(e instanceof Error ? e.message : 'Error'));
+      .catch((e) => setErr(e instanceof Error ? e.message : 'Error'))
+      .finally(() => useSplash.getState().hide());
   }, []);
 
   const t = stats?.totales ?? {};
