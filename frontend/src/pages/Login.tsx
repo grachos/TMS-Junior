@@ -36,7 +36,7 @@ export default function Login() {
     <div className="flex min-h-full items-center justify-center bg-brand-navy p-4 dark:bg-brand-ink">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-white">
-          <KonektoMark size={64} onDark className="mb-3" />
+          <KonektoMark size={64} tone="dark" className="mb-3" />
           <h1 className="text-3xl">
             <KonektoWordmark />
           </h1>

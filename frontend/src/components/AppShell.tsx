@@ -210,22 +210,47 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-full">
+    <div className="flex min-h-full flex-col">
+      {/* Brand header: logo + name + lema on every page, user actions on the right. */}
+      <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-surface px-4 py-3 md:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <button className="md:hidden" onClick={() => setOpen(true)} aria-label="Abrir menú">
+            <Menu size={22} />
+          </button>
+          <KonektoMark size={44} tone="auto" className="shrink-0" />
+          <div className="min-w-0 leading-tight">
+            <p className="text-xl text-brand-navy dark:text-white">
+              <KonektoWordmark />
+            </p>
+            <p className="text-xs text-slate-500 sm:truncate sm:text-sm">Despacho &amp; RNDC Light</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="hidden text-right sm:block">
+            <p className="text-sm font-medium text-slate-700">{user?.nombre}</p>
+            <p className="text-xs uppercase tracking-wide text-celeste-600">{user?.rol}</p>
+          </div>
+          <ThemeToggle />
+          <NotificationToggle />
+          <button className="btn-ghost" onClick={doLogout}>
+            <LogOut size={16} /> <span className="hidden sm:inline">Salir</span>
+          </button>
+        </div>
+      </header>
+
+      <div className="flex min-h-0 flex-1">
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-brand-navy text-white transition-transform md:static md:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-2 text-xl">
-            <KonektoMark size={26} onDark /> <KonektoWordmark />
-          </div>
-          <button className="md:hidden" onClick={() => setOpen(false)} aria-label="Cerrar menú">
+        <div className="flex justify-end px-4 pt-4 md:hidden">
+          <button onClick={() => setOpen(false)} aria-label="Cerrar menú">
             <X size={20} />
           </button>
         </div>
-        <nav className="mt-2 space-y-6 px-3 pb-6">
+        <nav className="mt-2 space-y-6 px-3 pb-6 md:mt-5">
           {visibleNav.map((group, gi) => (
             <div key={gi}>
               {group.section && (
@@ -271,24 +296,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {open && <div className="fixed inset-0 z-20 bg-black/30 md:hidden" onClick={() => setOpen(false)} />}
 
       {/* Main */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-surface px-4 py-3">
-          <button className="md:hidden" onClick={() => setOpen(true)} aria-label="Abrir menú">
-            <Menu size={22} />
-          </button>
-          <div className="flex flex-1 items-center justify-end gap-4">
-            <div className="text-right">
-              <p className="text-sm font-medium text-slate-700">{user?.nombre}</p>
-              <p className="text-xs uppercase tracking-wide text-celeste-600">{user?.rol}</p>
-            </div>
-            <ThemeToggle />
-            <NotificationToggle />
-            <button className="btn-ghost" onClick={doLogout}>
-              <LogOut size={16} /> Salir
-            </button>
-          </div>
-        </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+      <main className="min-w-0 flex-1 overflow-auto p-4 md:p-6">{children}</main>
       </div>
 
       <ChatWidget />
