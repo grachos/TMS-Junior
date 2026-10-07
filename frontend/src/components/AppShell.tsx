@@ -34,6 +34,7 @@ import { useTheme } from '../lib/theme';
 import { logoutWithSplash, useSplash } from '../lib/splash';
 import { ChatWidget } from './ChatWidget';
 import { KonektoMark, KonektoWordmark } from './Logo';
+import { IdleTimeout } from './IdleTimeout';
 import { soportePush, suscripcionActual, activarPush, desactivarPush } from '../lib/push';
 
 /** How often to re-poll the nav badge counts (ms). */
@@ -307,6 +308,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <ChatWidget />
+      <IdleTimeout />
     </div>
   );
 }

@@ -138,7 +138,7 @@ an 11‑character container serial (`CONTENEDORSERIAL`), also enforced client + 
 Retención en la fuente is always computed server‑side (1% of flete, or the RNDC's
 required placeholder value when the titular is under *Régimen Simple* — see
 [docs/RNDC.md](docs/RNDC.md#retencionfuentemanifiesto--excepción-por-régimen-simple)),
-never entered manually. Real RNDC sends are `admin`‑only and gated by the safety switch.
+never entered manually. Inactivity timeout: after 10 minutes without activity the session closes; a "¿Sigues ahí?" dialog counts down the last 60 seconds (activity is shared across tabs; see [`IdleTimeout.tsx`](frontend/src/components/IdleTimeout.tsx)). Real RNDC sends are `admin`‑only and gated by the safety switch.
 
 ## Branding & theming
 

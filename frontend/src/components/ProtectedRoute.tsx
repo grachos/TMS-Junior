@@ -9,6 +9,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   const token = useAuthStore((s) => s.token);
   const setUser = useAuthStore((s) => s.setUser);
   const location = useLocation();
+  const expired = useAuthStore((s) => s.expired);
 
   // Refresh rol/paginas from the server once per mount so an admin changing
   // this user's permissions takes effect without forcing a re-login.
@@ -23,7 +24,8 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   }, [token]);
 
   if (!token) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    // `expired` makes the login page explain why the session ended (idle timeout).
+    return <Navigate to={expired ? '/login?expired=1' : '/login'} replace state={{ from: location.pathname }} />;
   }
   return <>{children}</>;
 }

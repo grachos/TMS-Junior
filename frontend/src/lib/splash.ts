@@ -41,18 +41,20 @@ const COVER_MS = 400;
 let closing = false;
 
 /**
- * Ends the session behind the splash: it fades in first, then the session is
- * cleared (and `after` runs, e.g. navigate to /login), so the swap to the login
- * page happens out of sight. Login hides the splash again once its form is ready.
+ * Ends the session behind the splash: it fades in first, then `after` runs (e.g.
+ * navigate to /login) and the session is cleared, so the swap to the login page
+ * happens out of sight. Login hides the splash again once its form is ready.
  * Also used for expired sessions (401), where several requests may fail at once.
  */
-export function logoutWithSplash(after?: () => void): void {
+export function logoutWithSplash(after?: () => void, byInactivity = false): void {
   if (closing) return;
   closing = true;
   useSplash.getState().show();
   setTimeout(() => {
-    useAuthStore.getState().logout();
+    // Navigate first: once the session is cleared, ProtectedRoute redirects to a
+    // bare /login, which would overwrite a target like /login?expired=1.
     after?.();
+    useAuthStore.getState().logout(byInactivity);
     closing = false;
   }, COVER_MS);
 }

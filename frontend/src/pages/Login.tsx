@@ -1,13 +1,20 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LogIn, Loader2 } from 'lucide-react';
 import { KonektoMark, KonektoWordmark } from '../components/Logo';
 import { api, ApiError } from '../lib/api';
 import { useSplash } from '../lib/splash';
 import { useAuthStore, type StaffUser } from '../store/auth';
 
+/** UI strings, in one place to ease translation. */
+const TEXT = {
+  expired: 'Tu sesión se cerró por inactividad. Inicia sesión de nuevo para continuar.',
+};
+
 export default function Login() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const expired = params.get('expired') === '1';
   const setSession = useAuthStore((s) => s.setSession);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,6 +57,11 @@ export default function Login() {
           <p className="mt-1 text-xs font-medium uppercase tracking-[0.2em] text-white/60">Despacho &amp; RNDC Light</p>
         </div>
         <form onSubmit={onSubmit} className="card space-y-4">
+          {expired && !error && (
+            <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200">
+              {TEXT.expired}
+            </p>
+          )}
           <div>
             <label className="field-label" htmlFor="email">
               Correo

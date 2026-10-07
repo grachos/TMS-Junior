@@ -29,9 +29,11 @@ export interface StaffUser {
 interface AuthState {
   token: string | null;
   user: StaffUser | null;
+  /** True when the last logout was caused by inactivity (not persisted). */
+  expired: boolean;
   setSession: (token: string, user: StaffUser) => void;
   setUser: (user: StaffUser) => void;
-  logout: () => void;
+  logout: (byInactivity?: boolean) => void;
   isAdmin: () => boolean;
   canAccess: (pagina: Pagina) => boolean;
 }
@@ -41,9 +43,10 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       token: null,
       user: null,
-      setSession: (token, user) => set({ token, user }),
+      expired: false,
+      setSession: (token, user) => set({ token, user, expired: false }),
       setUser: (user) => set({ user }),
-      logout: () => set({ token: null, user: null }),
+      logout: (byInactivity = false) => set({ token: null, user: null, expired: byInactivity }),
       isAdmin: () => get().user?.rol === 'admin',
       canAccess: (pagina) => {
         const u = get().user;
@@ -52,6 +55,6 @@ export const useAuthStore = create<AuthState>()(
         return u.paginas === null || u.paginas.includes(pagina);
       },
     }),
-    { name: 'tms-auth' },
+    { name: 'tms-auth', partialize: (s) => ({ token: s.token, user: s.user }) },
   ),
 );
