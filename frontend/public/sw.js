@@ -1,5 +1,5 @@
 /**
- * Light TMS - Service worker for Web Push.
+ * Konekto - Service worker for Web Push.
  *
  * Deliberately minimal: no offline caching, just push delivery. The browser
  * keeps this running (or wakes it) even when no tab is open, which is what
@@ -20,15 +20,15 @@ self.addEventListener('push', (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: 'Light TMS', body: event.data.text() };
+    payload = { title: 'Konekto', body: event.data.text() };
   }
   const { title, body, url, tag } = payload;
   event.waitUntil(
-    self.registration.showNotification(title || 'Light TMS', {
+    self.registration.showNotification(title || 'Konekto', {
       body,
       tag,
-      icon: '/favicon.svg',
-      badge: '/favicon.svg',
+      icon: '/icons/maskable-192.png',
+      badge: '/icons/badge-96.png',
       data: { url: url || '/' },
     }),
   );

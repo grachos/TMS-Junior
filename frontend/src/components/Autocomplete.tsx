@@ -90,7 +90,7 @@ export function Autocomplete({
         />
       </div>
       {open && (
-        <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+        <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-surface shadow-lg">
           {loading && <li className="px-3 py-2 text-sm text-slate-400">Buscando…</li>}
           {!loading && items.length === 0 && (
             <li className="px-3 py-2 text-sm text-slate-400">Sin resultados.</li>

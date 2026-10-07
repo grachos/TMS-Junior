@@ -1,4 +1,6 @@
-# Light TMS
+# Konekto
+
+*Despacho & RNDC Light (formerly "Light TMS").*
 
 > Colombian freight **Transport Management System** (TMS) that captures service
 > requests, seeds the corresponding **Manifiesto** and **Remesas**, and files them
@@ -137,6 +139,12 @@ Retención en la fuente is always computed server‑side (1% of flete, or the RN
 required placeholder value when the titular is under *Régimen Simple* — see
 [docs/RNDC.md](docs/RNDC.md#retencionfuentemanifiesto--excepción-por-régimen-simple)),
 never entered manually. Real RNDC sends are `admin`‑only and gated by the safety switch.
+
+## Branding & theming
+
+- **Palette** (sampled from the logo): navy `#142B54`, cyan `#09B8CD`, blue `#0580A1`, green `#11B787`. White text is only used on navy / blue 600+; cyan and green take navy text.
+- **Themes**: light = navy sidebar + blue actions; dark = ink page, navy surfaces, cyan actions. The `celeste` (blue) and `slate` (neutral) Tailwind ramps are CSS variables in [`frontend/src/index.css`](frontend/src/index.css), so every existing utility class flips with the `.dark` class. The header sun/moon toggle stores the choice in `localStorage` (`konekto-theme`); with no choice saved it follows the OS setting.
+- **Icons**: sources live in [`frontend/public/icons/`](frontend/public/icons/) (`maskable.svg`, `badge.svg`) and `frontend/public/favicon.svg`. The PNGs (maskable 192/512, apple-touch 180, push badge 96) are rendered from those SVGs with headless Chrome. The in-app mark is [`Logo.tsx`](frontend/src/components/Logo.tsx), a vector redraw of the logo, not a trace.
 
 ## Requirements
 

@@ -291,7 +291,7 @@ export default function DespachosList() {
       {anularModal && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" onClick={() => !anulando && setAnularModal(null)}>
           <div
-            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl"
+            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-surface shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">

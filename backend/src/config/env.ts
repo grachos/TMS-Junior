@@ -75,7 +75,7 @@ export function config(): AppConfig {
   if (cached) return cached;
   cached = {
     app: {
-      name: str('APP_NAME', 'Light TMS'),
+      name: str('APP_NAME', 'Konekto'),
       env: str('APP_ENV', 'local'),
       debug: bool('APP_DEBUG', false),
       port: int('PORT', 4000),

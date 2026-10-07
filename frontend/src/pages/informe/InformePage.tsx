@@ -123,13 +123,13 @@ export default function InformePage() {
 
       <div className="mb-4 inline-flex rounded-lg bg-slate-100 p-1 text-sm">
         <button
-          className={`rounded-md px-4 py-1.5 font-medium transition-colors ${nivel === 'remesa' ? 'bg-white text-celeste-700 shadow-sm' : 'text-slate-500'}`}
+          className={`rounded-md px-4 py-1.5 font-medium transition-colors ${nivel === 'remesa' ? 'bg-surface text-celeste-700 shadow-sm' : 'text-slate-500'}`}
           onClick={() => cambiarNivel('remesa')}
         >
           Por remesa (detalle)
         </button>
         <button
-          className={`rounded-md px-4 py-1.5 font-medium transition-colors ${nivel === 'manifiesto' ? 'bg-white text-celeste-700 shadow-sm' : 'text-slate-500'}`}
+          className={`rounded-md px-4 py-1.5 font-medium transition-colors ${nivel === 'manifiesto' ? 'bg-surface text-celeste-700 shadow-sm' : 'text-slate-500'}`}
           onClick={() => cambiarNivel('manifiesto')}
         >
           Por manifiesto (resumen)

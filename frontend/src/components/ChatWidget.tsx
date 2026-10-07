@@ -67,7 +67,7 @@ export function ChatWidget() {
       {!abierto && (
         <button
           onClick={() => setAbierto(true)}
-          className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-celeste-600 text-white shadow-lg transition hover:bg-celeste-700"
+          className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-celeste-600 text-white shadow-lg transition hover:bg-celeste-700 dark:text-brand-navy"
           aria-label="Abrir asistente de datos"
         >
           <MessageCircle size={24} />
@@ -76,8 +76,8 @@ export function ChatWidget() {
 
       {/* Panel */}
       {abierto && (
-        <div className="fixed bottom-5 right-5 z-40 flex h-[32rem] w-[22rem] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-          <header className="flex items-center justify-between bg-celeste-700 px-4 py-3 text-white">
+        <div className="fixed bottom-5 right-5 z-40 flex h-[32rem] w-[22rem] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-surface shadow-2xl">
+          <header className="flex items-center justify-between bg-celeste-700 px-4 py-3 text-white dark:text-brand-navy">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Bot size={18} /> Asistente de datos
             </div>
@@ -102,8 +102,8 @@ export function ChatWidget() {
                 <div
                   className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
                     m.role === 'user'
-                      ? 'bg-celeste-600 text-white'
-                      : 'border border-slate-200 bg-white text-slate-700'
+                      ? 'bg-celeste-600 text-white dark:text-brand-navy'
+                      : 'border border-slate-200 bg-surface text-slate-700'
                   }`}
                 >
                   {m.content}
@@ -112,7 +112,7 @@ export function ChatWidget() {
             ))}
             {cargando && (
               <div className="flex justify-start">
-                <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-400">
+                <div className="rounded-2xl border border-slate-200 bg-surface px-3 py-2 text-slate-400">
                   <Loader2 size={16} className="animate-spin" />
                 </div>
               </div>

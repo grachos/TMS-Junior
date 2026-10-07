@@ -1,5 +1,5 @@
 /**
- * Light TMS - Authenticated app shell: top bar + responsive sidebar nav.
+ * Konekto - Authenticated app shell: top bar + responsive sidebar nav.
  *
  * Mirrors the PHP navigation (src/vista.php): Inicio, Solicitudes, Despachos,
  * Cola, Cumplido, and the Maestros group (Terceros, Vehículos, Productos,
@@ -24,11 +24,15 @@ import {
   X,
   Bell,
   BellOff,
+  Sun,
+  Moon,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuthStore, type Pagina } from '../store/auth';
 import { api } from '../lib/api';
+import { useTheme } from '../lib/theme';
 import { ChatWidget } from './ChatWidget';
+import { KonektoMark, KonektoWordmark } from './Logo';
 import { soportePush, suscripcionActual, activarPush, desactivarPush } from '../lib/push';
 
 /** How often to re-poll the nav badge counts (ms). */
@@ -89,6 +93,17 @@ const NAV: { section?: string; items: NavItem[] }[] = [
     ],
   },
 ];
+
+/** Header sun/moon: switch between the light and dark theme. */
+function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  const dark = theme === 'dark';
+  return (
+    <button className="btn-ghost" onClick={toggle} title={dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'} aria-label="Cambiar tema">
+      {dark ? <Sun size={18} /> : <Moon size={18} />}
+    </button>
+  );
+}
 
 /** Header bell: subscribe/unsubscribe this browser from push notifications. */
 function NotificationToggle() {
@@ -198,13 +213,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-full">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-celeste-800 text-celeste-50 transition-transform md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-brand-navy text-white transition-transform md:static md:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-2 font-semibold tracking-tight">
-            <Truck size={22} /> Light TMS
+          <div className="flex items-center gap-2 text-xl">
+            <KonektoMark size={26} onDark /> <KonektoWordmark />
           </div>
           <button className="md:hidden" onClick={() => setOpen(false)} aria-label="Cerrar menú">
             <X size={20} />
@@ -214,7 +229,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {visibleNav.map((group, gi) => (
             <div key={gi}>
               {group.section && (
-                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-celeste-300">
+                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-white/50">
                   {group.section}
                 </p>
               )}
@@ -227,7 +242,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       onClick={() => setOpen(false)}
                       className={({ isActive }) =>
                         `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                          isActive ? 'bg-celeste-600 text-white' : 'text-celeste-100 hover:bg-celeste-700'
+                          isActive ? 'bg-brand-cyan font-medium text-brand-navy' : 'text-white/80 hover:bg-white/10 hover:text-white'
                         }`
                       }
                     >
@@ -257,7 +272,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+        <header className="flex items-center justify-between border-b border-slate-200 bg-surface px-4 py-3">
           <button className="md:hidden" onClick={() => setOpen(true)} aria-label="Abrir menú">
             <Menu size={22} />
           </button>
@@ -266,6 +281,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-medium text-slate-700">{user?.nombre}</p>
               <p className="text-xs uppercase tracking-wide text-celeste-600">{user?.rol}</p>
             </div>
+            <ThemeToggle />
             <NotificationToggle />
             <button className="btn-ghost" onClick={doLogout}>
               <LogOut size={16} /> Salir

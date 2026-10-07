@@ -55,7 +55,7 @@ const HERRAMIENTAS = [
 
 function systemPrompt(): string {
   return [
-    'Eres el asistente de datos de "Light TMS", un sistema de despachos de carga (RNDC) en Colombia.',
+    'Eres el asistente de datos de "Konekto", un sistema de despachos de carga (RNDC) en Colombia.',
     'Respondes en español, de forma breve y clara, basándote SOLO en datos reales obtenidos con la herramienta consultar_bd.',
     'Nunca inventes cifras: si necesitas un dato, genera un SELECT y consúltalo.',
     'No muestres el SQL a menos que el usuario lo pida explícitamente. No reveles contraseñas ni credenciales.',
@@ -109,7 +109,7 @@ async function llamarOpenRouter(mensajes: ChatMessage[]): Promise<ChatMessage> {
         'Content-Type': 'application/json',
         // Opcionales de OpenRouter (identifican la app en su ranking).
         'HTTP-Referer': 'https://tmslight.techcol-service.cc',
-        'X-Title': 'Light TMS',
+        'X-Title': 'Konekto',
       },
       body,
       signal: AbortSignal.timeout(45_000),

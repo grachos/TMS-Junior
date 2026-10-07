@@ -314,7 +314,7 @@ export default function ColaMonitor() {
 
       {xml && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" onClick={() => setXml(null)}>
-          <div className="flex max-h-[80vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex max-h-[80vh] w-full max-w-3xl flex-col rounded-xl bg-surface shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
               <h3 className="font-semibold text-slate-800">XML · cola #{xml.id}</h3>
               <button onClick={() => setXml(null)} aria-label="Cerrar">
@@ -329,7 +329,7 @@ export default function ColaMonitor() {
       {anularRow && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" onClick={() => !anulando && setAnularRow(null)}>
           <div
-            className="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl bg-white shadow-xl"
+            className="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl bg-surface shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">

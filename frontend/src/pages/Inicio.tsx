@@ -31,7 +31,8 @@ interface Stats {
   totales: { solicitudes?: number; remesas?: number; manifiestos?: number; cola_pendiente?: number; cola_error?: number };
 }
 
-const CELESTE = '#236a8f';
+const CELESTE = 'rgb(var(--c-600))';
+const GRID = 'rgb(var(--s-200))';
 
 function Kpi({ icon: Icon, label, value, tone = 'celeste' }: { icon: typeof FileText; label: string; value: React.ReactNode; tone?: string }) {
   const tones: Record<string, string> = {
@@ -90,7 +91,7 @@ export default function Inicio() {
           <h2 className="mb-4 text-sm font-semibold text-slate-700">Cola de envíos por estado</h2>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={stats?.colaPorEstado ?? []}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
               <XAxis dataKey="estado" fontSize={12} />
               <YAxis allowDecimals={false} fontSize={12} />
               <Tooltip />
@@ -109,7 +110,7 @@ export default function Inicio() {
                   <stop offset="95%" stopColor={CELESTE} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
               <XAxis dataKey="dia" fontSize={11} tickFormatter={(d) => String(d).slice(5)} />
               <YAxis allowDecimals={false} fontSize={12} />
               <Tooltip />
@@ -124,11 +125,11 @@ export default function Inicio() {
           <h2 className="mb-4 text-sm font-semibold text-slate-700">Solicitudes por estado</h2>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={stats?.solicitudesPorEstado ?? []} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
               <XAxis type="number" allowDecimals={false} fontSize={12} />
               <YAxis type="category" dataKey="estado" width={90} fontSize={12} />
               <Tooltip />
-              <Bar dataKey="n" fill="#4f9fc7" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="n" fill="rgb(var(--c-400))" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

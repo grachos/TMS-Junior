@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Truck, LogIn, Loader2 } from 'lucide-react';
+import { LogIn, Loader2 } from 'lucide-react';
+import { KonektoMark, KonektoWordmark } from '../components/Logo';
 import { api, ApiError } from '../lib/api';
 import { useAuthStore, type StaffUser } from '../store/auth';
 
@@ -32,14 +33,14 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-celeste-700 to-celeste-900 p-4">
+    <div className="flex min-h-full items-center justify-center bg-brand-navy p-4 dark:bg-brand-ink">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-white">
-          <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
-            <Truck size={28} />
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Light TMS</h1>
-          <p className="text-sm text-celeste-200">Registro Nacional de Despachos de Carga</p>
+          <KonektoMark size={64} onDark className="mb-3" />
+          <h1 className="text-3xl">
+            <KonektoWordmark />
+          </h1>
+          <p className="mt-1 text-xs font-medium uppercase tracking-[0.2em] text-white/60">Despacho &amp; RNDC Light</p>
         </div>
         <form onSubmit={onSubmit} className="card space-y-4">
           <div>

@@ -2,6 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme tokens: RGB triplets so Tailwind can apply alpha. Light = "A" (navy shell,
+   blue actions), dark = "C" (ink page, navy surfaces, cyan actions). */
+:root {
+  --c-50: 232 246 250;
+  --c-100: 200 233 242;
+  --c-200: 150 212 230;
+  --c-300: 88 186 213;
+  --c-400: 34 157 194;
+  --c-500: 11 141 175;
+  --c-600: 5 128 161;
+  --c-700: 4 102 131;
+  --c-800: 5 79 102;
+  --c-900: 11 59 77;
+
+  --s-50: 248 250 252;
+  --s-100: 241 245 249;
+  --s-200: 226 232 240;
+  --s-300: 203 213 225;
+  --s-400: 148 163 184;
+  --s-500: 100 116 139;
+  --s-600: 71 85 105;
+  --s-700: 51 65 85;
+  --s-800: 30 41 59;
+  --s-900: 15 23 42;
+
+  --surface: 255 255 255;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --c-50: 27 58 107;
+  --c-100: 33 69 124;
+  --c-200: 44 88 150;
+  --c-300: 62 120 170;
+  --c-400: 9 184 205;
+  --c-500: 9 184 205;
+  --c-600: 9 184 205;
+  --c-700: 95 208 224;
+  --c-800: 138 223 234;
+  --c-900: 183 238 244;
+
+  --s-50: 15 34 68;
+  --s-100: 12 27 56;
+  --s-200: 42 69 119;
+  --s-300: 53 80 138;
+  --s-400: 124 141 176;
+  --s-500: 154 169 199;
+  --s-600: 181 192 216;
+  --s-700: 203 213 230;
+  --s-800: 226 232 243;
+  --s-900: 241 245 251;
+
+  --surface: 20 43 84;
+}
+
 @layer base {
   html,
   body,
@@ -18,20 +74,34 @@
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
       transition-colors focus:outline-none focus:ring-2 focus:ring-celeste-400 disabled:opacity-50;
   }
+  /* Dark mode swaps the fill to cyan, which needs navy (not white) text: 5.8:1 vs 2.4:1. */
   .btn-primary {
-    @apply btn bg-celeste-600 text-white hover:bg-celeste-700;
+    @apply btn bg-celeste-600 text-white hover:bg-celeste-700 dark:text-brand-navy;
   }
   .btn-ghost {
-    @apply btn bg-white text-celeste-700 ring-1 ring-inset ring-celeste-200 hover:bg-celeste-50;
+    @apply btn bg-surface text-celeste-700 ring-1 ring-inset ring-celeste-200 hover:bg-celeste-50;
   }
   .card {
-    @apply rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200;
+    @apply rounded-xl bg-surface p-5 shadow-sm ring-1 ring-slate-200;
   }
   .field-label {
     @apply mb-1 block text-sm font-medium text-slate-600;
   }
   .field-input {
-    @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm
+    @apply w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-800 shadow-sm
       focus:border-celeste-400 focus:outline-none focus:ring-1 focus:ring-celeste-400;
   }
+}
+
+/* Recharts draws its own SVG text and tooltip with hardcoded colors. */
+.recharts-cartesian-axis-tick-value {
+  fill: rgb(var(--s-500));
+}
+.recharts-default-tooltip {
+  background-color: rgb(var(--surface)) !important;
+  border-color: rgb(var(--s-200)) !important;
+}
+.recharts-tooltip-label,
+.recharts-tooltip-item {
+  color: rgb(var(--s-700)) !important;
 }
