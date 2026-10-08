@@ -352,7 +352,9 @@ cumplidoRouter.post(
         manifiestoId,
       ]);
       const sId = Number(manifRows[0]?.solicitud_id ?? 0);
-      if (sId > 0 && remesaIds.length > 0) {
+      // A viaje urbano has no remesa cumplido to send: its manifiesto cumplido is queued on its own.
+      const urbano = sId > 0 && (await cola.solicitudEsUrbana(conn, sId));
+      if (sId > 0 && (remesaIds.length > 0 || urbano)) {
         await cola.encolarCumplido(conn, sId, manifiestoId, remesaIds);
       }
     });

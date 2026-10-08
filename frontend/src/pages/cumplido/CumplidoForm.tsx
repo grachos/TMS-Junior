@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Save, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
+import { Save, ArrowLeft, Loader2, CheckCircle2, Info } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { Alert } from '../../components/Alert';
 
@@ -37,6 +37,8 @@ export default function CumplidoForm() {
   const navigate = useNavigate();
   const [manif, setManif] = useState<Record<string, any> | null>(null);
   const [remesas, setRemesas] = useState<RemesaCumplido[]>([]);
+  // Viaje urbano: el RNDC no recibe el cumplido de remesa, solo el del manifiesto.
+  const [urbano, setUrbano] = useState(false);
   const [man, setMan] = useState({
     cumplido_tipo: 'C',
     fecha_entrega_documentos: '',
@@ -51,10 +53,11 @@ export default function CumplidoForm() {
   useEffect(() => {
     void (async () => {
       try {
-        const data = await api<{ manifiesto: Record<string, any>; remesas: Record<string, any>[] }>(
+        const data = await api<{ manifiesto: Record<string, any>; solicitud?: Record<string, any>; remesas: Record<string, any>[] }>(
           `/cumplido/${manifiestoId}`,
         );
         setManif(data.manifiesto);
+        setUrbano(String(data.solicitud?.tipo_viaje ?? '').trim().toUpperCase() === 'URBANO');
         setRemesas(data.remesas.map(remesaFields));
         setMan({
           cumplido_tipo: data.manifiesto.cumplido_tipo ?? 'C',
@@ -80,7 +83,7 @@ export default function CumplidoForm() {
     setError(null);
     setSaving(true);
     try {
-      await api(`/cumplido/${manifiestoId}`, { method: 'POST', body: { ...man, remesas } });
+      await api(`/cumplido/${manifiestoId}`, { method: 'POST', body: { ...man, remesas: urbano ? [] : remesas } });
       navigate('/cumplido?ok=' + encodeURIComponent('Cumplido guardado y encolado para el RNDC.'));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar el cumplido.');
@@ -106,63 +109,58 @@ export default function CumplidoForm() {
         <CheckCircle2 size={20} className="text-celeste-600" /> Cumplido · Manifiesto {manif?.num_manifiesto ?? ''}
       </h1>
       <p className="mb-4 text-sm text-slate-500">
-        Registra la finalización del viaje. Se encola procesoid 5 (cumplido remesa) y 6 (cumplido manifiesto).
+        Registra la finalización del viaje.{' '}
+        {urbano
+          ? 'Se encola solo el cumplido del manifiesto (procesoid 6).'
+          : 'Se encola procesoid 5 (cumplido remesa) y 6 (cumplido manifiesto).'}
       </p>
 
       {error && <Alert kind="err" message={error} onClose={() => setError(null)} />}
 
       <form onSubmit={onSubmit} className="space-y-5">
-        <fieldset className="card">
-          <legend className="px-1 text-sm font-semibold text-celeste-700">Cumplido de remesas</legend>
-          <div className="mt-3 space-y-4">
-            {remesas.map((r, i) => (
-              <div key={r.id} className="rounded-lg border border-slate-200 p-4">
-                <h3 className="mb-2 text-sm font-semibold text-slate-700">
-                  Remesa {i + 1}: <span className="font-mono">{r.num_remesa}</span>
-                </h3>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div>
-                    <label className="field-label">Tipo cumplido</label>
-                    <select className="field-input" value={r.cumplido_tipo} onChange={(e) => updR(i, 'cumplido_tipo', e.target.value)}>
-                      <option value="C">C — Normal</option>
-                      <option value="S">S — Suspendido</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="field-label">Cantidad cargada (kg)</label>
-                    <input type="number" step="0.001" className="field-input" value={r.peso} onChange={(e) => updR(i, 'peso', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="field-label">Cantidad entregada (kg)</label>
-                    <input type="number" step="0.001" className="field-input" value={r.cantidad_entregada} onChange={(e) => updR(i, 'cantidad_entregada', e.target.value)} />
-                  </div>
-                </div>
-                <p className="mb-2 mt-3 text-xs font-semibold text-celeste-600">Citas de descargue</p>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {([
-                    ['fecha_llegada_descargue', 'Fecha llegada', 'date'],
-                    ['hora_llegada_descargue', 'Hora llegada', 'time'],
-                    ['fecha_entrada_descargue', 'Fecha entrada', 'date'],
-                    ['hora_entrada_descargue', 'Hora entrada', 'time'],
-                    ['fecha_salida_descargue', 'Fecha salida', 'date'],
-                    ['hora_salida_descargue', 'Hora salida', 'time'],
-                  ] as const).map(([k, lbl, type]) => (
-                    <div key={k}>
-                      <label className="field-label">{lbl}</label>
-                      <input type={type} className="field-input" value={r[k]} onChange={(e) => updR(i, k, e.target.value)} />
+        {urbano ? (
+          <div className="card flex items-start gap-3 text-sm text-slate-600">
+            <Info size={18} className="mt-0.5 shrink-0 text-celeste-600" />
+            <p>
+              <strong className="text-slate-800">Viaje urbano.</strong> El cumplido de la remesa no se envía al RNDC;
+              solo se reporta el cumplido del manifiesto.
+            </p>
+          </div>
+        ) : (
+          <fieldset className="card">
+            <legend className="px-1 text-sm font-semibold text-celeste-700">Cumplido de remesas</legend>
+            <div className="mt-3 space-y-4">
+              {remesas.map((r, i) => (
+                <div key={r.id} className="rounded-lg border border-slate-200 p-4">
+                  <h3 className="mb-2 text-sm font-semibold text-slate-700">
+                    Remesa {i + 1}: <span className="font-mono">{r.num_remesa}</span>
+                  </h3>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="field-label">Tipo cumplido</label>
+                      <select className="field-input" value={r.cumplido_tipo} onChange={(e) => updR(i, 'cumplido_tipo', e.target.value)}>
+                        <option value="C">C — Normal</option>
+                        <option value="S">S — Suspendido</option>
+                      </select>
                     </div>
-                  ))}
-                </div>
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-xs text-slate-500">Citas de cargue (si no se capturaron al crear)</summary>
-                  <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="field-label">Cantidad cargada (kg)</label>
+                      <input type="number" step="0.001" className="field-input" value={r.peso} onChange={(e) => updR(i, 'peso', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="field-label">Cantidad entregada (kg)</label>
+                      <input type="number" step="0.001" className="field-input" value={r.cantidad_entregada} onChange={(e) => updR(i, 'cantidad_entregada', e.target.value)} />
+                    </div>
+                  </div>
+                  <p className="mb-2 mt-3 text-xs font-semibold text-celeste-600">Citas de descargue</p>
+                  <div className="grid gap-3 sm:grid-cols-3">
                     {([
-                      ['fecha_llegada_cargue', 'Fecha llegada', 'date'],
-                      ['hora_llegada_cargue', 'Hora llegada', 'time'],
-                      ['fecha_entrada_cargue', 'Fecha entrada', 'date'],
-                      ['hora_entrada_cargue', 'Hora entrada', 'time'],
-                      ['fecha_salida_cargue', 'Fecha salida', 'date'],
-                      ['hora_salida_cargue', 'Hora salida', 'time'],
+                      ['fecha_llegada_descargue', 'Fecha llegada', 'date'],
+                      ['hora_llegada_descargue', 'Hora llegada', 'time'],
+                      ['fecha_entrada_descargue', 'Fecha entrada', 'date'],
+                      ['hora_entrada_descargue', 'Hora entrada', 'time'],
+                      ['fecha_salida_descargue', 'Fecha salida', 'date'],
+                      ['hora_salida_descargue', 'Hora salida', 'time'],
                     ] as const).map(([k, lbl, type]) => (
                       <div key={k}>
                         <label className="field-label">{lbl}</label>
@@ -170,11 +168,29 @@ export default function CumplidoForm() {
                       </div>
                     ))}
                   </div>
-                </details>
-              </div>
-            ))}
-          </div>
-        </fieldset>
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-xs text-slate-500">Citas de cargue (si no se capturaron al crear)</summary>
+                    <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                      {([
+                        ['fecha_llegada_cargue', 'Fecha llegada', 'date'],
+                        ['hora_llegada_cargue', 'Hora llegada', 'time'],
+                        ['fecha_entrada_cargue', 'Fecha entrada', 'date'],
+                        ['hora_entrada_cargue', 'Hora entrada', 'time'],
+                        ['fecha_salida_cargue', 'Fecha salida', 'date'],
+                        ['hora_salida_cargue', 'Hora salida', 'time'],
+                      ] as const).map(([k, lbl, type]) => (
+                        <div key={k}>
+                          <label className="field-label">{lbl}</label>
+                          <input type={type} className="field-input" value={r[k]} onChange={(e) => updR(i, k, e.target.value)} />
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              ))}
+            </div>
+          </fieldset>
+        )}
 
         <fieldset className="card">
           <legend className="px-1 text-sm font-semibold text-celeste-700">Cumplido del manifiesto</legend>

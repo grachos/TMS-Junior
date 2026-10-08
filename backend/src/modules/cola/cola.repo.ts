@@ -15,7 +15,7 @@
  * typed structs — verify column names against the live DB.
  */
 
-import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
+import type { Pool, PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { db, withTransaction } from '../../db/pool.js';
 import { config } from '../../config/env.js';
 import { RndcClient, type RndcVars } from '../../rndc/RndcClient.js';
@@ -24,6 +24,7 @@ import * as terceroRepo from '../terceros/tercero.repo.js';
 import * as vehiculoRepo from '../vehiculos/vehiculo.repo.js';
 import { obtener as obtenerEmpresa } from '../empresa/empresa.repo.js';
 import { consecutivoRemesaRndc } from '../../util/consecutivoRndc.js';
+import { esViajeUrbano } from '../../util/tipoViaje.js';
 import { pesoAsignadoSolicitud, pesoTotalDe } from '../../util/pesoSolicitud.js';
 import { cached } from '../../util/cache.js';
 
@@ -226,14 +227,43 @@ async function reemplazarColaPendiente(
   );
 }
 
-/** Enqueues cumplido documents (procesoid 5 & 6) for an accepted manifiesto. Port of encolarCumplido(). */
+/** True when the solicitud's tipo_viaje is URBANO. */
+export async function solicitudEsUrbana(conn: Queryable, solicitudId: number): Promise<boolean> {
+  const s = await fila(conn, 'SELECT tipo_viaje FROM solicitud_servicio WHERE id = ?', [solicitudId]);
+  return esViajeUrbano(s?.tipo_viaje);
+}
+
+/**
+ * Viaje urbano: el cumplido de remesa NO se envía al RNDC (solo el del manifiesto).
+ * Borra los cumplido_remesa que sigan sin enviarse (pendiente/error) de solicitudes
+ * urbanas — p.ej. los que se encolaron antes de esta regla — para que ningún
+ * camino de envío (cron, "Procesar ahora", por despacho) los mande. Los ya
+ * enviados se conservan como historial.
+ */
+export async function purgarCumplidoRemesaUrbano(conn: Queryable = db()): Promise<number> {
+  const [res] = await conn.query<ResultSetHeader>(
+    `DELETE c FROM cola_envios c
+     JOIN solicitud_servicio s ON s.id = c.solicitud_id
+     WHERE c.tipo_documento = 'cumplido_remesa'
+       AND c.estado IN ('pendiente','error')
+       AND UPPER(TRIM(COALESCE(s.tipo_viaje, ''))) = 'URBANO'`,
+  );
+  return res.affectedRows;
+}
+
+/**
+ * Enqueues cumplido documents (procesoid 5 & 6) for an accepted manifiesto. Port of encolarCumplido().
+ * In a viaje urbano only the manifiesto's cumplido (6) is queued.
+ */
 export async function encolarCumplido(
   conn: Queryable,
   solicitudId: number,
   manifiestoId: number,
   remesaIds: number[],
 ): Promise<void> {
-  for (const rid of remesaIds) {
+  const urbano = await solicitudEsUrbana(conn, solicitudId);
+  if (urbano) await purgarCumplidoRemesaUrbano(conn);
+  for (const rid of urbano ? [] : remesaIds) {
     const rem = await fila(conn, 'SELECT * FROM remesa WHERE id = ?', [rid]);
     if (rem === null) continue;
     // Skip remesas already accepted by the RNDC: re-sending a cumplido that
@@ -1086,6 +1116,7 @@ export interface DrenarResult {
 
 /** Drains the queue in order, respecting dependencies. Port of drenar(). */
 export async function drenar(): Promise<DrenarResult> {
+  await purgarCumplidoRemesaUrbano();
   const habilitado = config().cola.envioHabilitado;
   const minutos = config().cola.minutosReintento;
   const rndc = await RndcClient.desdeConfig();
@@ -1280,6 +1311,10 @@ export async function procesarItem(colaId: number): Promise<ItemResult> {
   if (!['pendiente', 'error'].includes(row.estado)) {
     return { ok: false, mensaje: `Estado ${row.estado} no permite procesar.` };
   }
+  if (row.tipo_documento === 'cumplido_remesa' && (await solicitudEsUrbana(db(), Number(row.solicitud_id)))) {
+    await db().query('DELETE FROM cola_envios WHERE id = ?', [Number(row.id)]);
+    return { ok: true, mensaje: 'Cumplido de remesa omitido: los viajes urbanos no lo envían al RNDC.' };
+  }
   const id = Number(row.id);
   if (!habilitado) {
     await db().query('UPDATE cola_envios SET respuesta_rndc = ?, ultimo_error = ? WHERE id = ?', [
@@ -1313,6 +1348,7 @@ export async function procesarDespacho(manifiestoId: number): Promise<ItemResult
   let enviados = 0;
   let errores = 0;
 
+  await purgarCumplidoRemesaUrbano();
   const [items] = await db().query<RowDataPacket[]>(
     "SELECT * FROM cola_envios WHERE manifiesto_id = ? AND estado IN ('pendiente','error') ORDER BY orden, id",
     [manifiestoId],

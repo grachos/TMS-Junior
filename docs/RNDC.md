@@ -124,6 +124,23 @@ exactamente 11 caracteres.
 > envía `pesoContenedorVacio` **hardcoded a `'2100'` para toda remesa, no solo
 > las de contenedor** — vale la pena revisarlo por separado.
 
+### Viaje urbano — sin cumplido de remesa
+
+Cuando la solicitud es de **Tipo de viaje = Urbano** (`solicitud_servicio.tipo_viaje`),
+el cumplido de la remesa (procesoid 5) **no se envía al RNDC**; solo se reporta el
+cumplido del manifiesto (procesoid 6). Implementado en tres capas:
+
+- **Encolado** — `encolarCumplido()` no inserta `cumplido_remesa` y el POST de
+  `/api/cumplido/:manifiestoId` encola el cumplido del manifiesto aunque no lleguen remesas.
+- **Envío** — `purgarCumplidoRemesaUrbano()` borra los `cumplido_remesa` aún sin enviar
+  (`pendiente`/`error`) de solicitudes urbanas antes de que `drenar()` (cron y "Procesar ahora"),
+  `procesarDespacho()` o `procesarItem()` manden nada; así también se limpian los que se
+  encolaron antes de esta regla. Los ya enviados se conservan como historial.
+- **Pantalla** — el formulario de Cumplido oculta la sección de remesas y avisa que es un viaje urbano.
+
+Los contadores y el informe dependen del cumplido del *manifiesto*, así que un viaje
+urbano no queda pendiente por no cumplir remesas.
+
 El diccionario completo de variables oficiales está en:
 - `docs/diccionario_rndc.csv` (fuente, UTF-8)
 - `src/Rndc/Diccionario.php` (generado, usado por el código)
