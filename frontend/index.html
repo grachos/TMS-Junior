@@ -23,10 +23,17 @@
       #splash .splash-name { margin-top: 18px; font: 800 56px/1 Inter, 'Segoe UI', system-ui, Roboto, sans-serif; letter-spacing: -0.02em; text-transform: lowercase; }
       #splash .splash-name span { color: #09B8CD; }
       #splash .splash-tag { margin-top: 12px; font: 500 14px/1 Inter, 'Segoe UI', system-ui, Roboto, sans-serif; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6); }
+      #splash .splash-loader { margin-top: 36px; width: min(300px, 72vw); }
+      #splash .splash-track { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+      #splash .splash-fill { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #09B8CD, #11B787); transition: width 0.35s ease; }
+      /* Fills to ~92% over --splash-ms (the minimum time on screen); the controller finishes it at 100%. */
+      #splash.splash-run .splash-fill { animation: splash-bar var(--splash-ms, 2500ms) cubic-bezier(0.22, 0.7, 0.3, 1) forwards; }
+      #splash .splash-label { margin-top: 12px; font: 500 13px/1 Inter, 'Segoe UI', system-ui, Roboto, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.7); }
+      @keyframes splash-bar { from { width: 0; } to { width: 92%; } }
       @keyframes splash-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
       @keyframes splash-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.78; } }
       @media (prefers-reduced-motion: reduce) { #splash, #splash .splash-inner { animation: none; transition: opacity 0.2s ease; } #splash svg { animation: none; } }
-      @media (max-width: 480px) { #splash svg { width: 110px; height: 110px; } #splash .splash-name { font-size: 42px; } #splash .splash-tag { font-size: 11px; } }
+      @media (max-width: 480px) { #splash .splash-loader { margin-top: 28px; } #splash svg { width: 110px; height: 110px; } #splash .splash-name { font-size: 42px; } #splash .splash-tag { font-size: 11px; } }
     </style>
     <!-- Apply the saved/OS theme before first paint so dark mode doesn't flash light. -->
     <script>
@@ -40,7 +47,7 @@
   </head>
   <body>
     <!-- The mark below mirrors src/components/Logo.tsx (tone="dark"); keep them in sync. -->
-    <div id="splash" role="status" aria-label="Cargando Konekto">
+    <div id="splash" class="splash-run" role="status" aria-label="Cargando Konekto">
       <div class="splash-inner">
         <svg viewBox="0 0 100 100" aria-hidden="true">
           <path d="M2 8H26L56 50L26 92H2L32 50Z" fill="#fff" />
@@ -55,6 +62,10 @@
         </svg>
         <div class="splash-name">konek<span>to</span></div>
         <div class="splash-tag">Despacho &amp; RNDC Light</div>
+        <div class="splash-loader" role="progressbar" aria-label="Cargando" aria-valuemin="0" aria-valuemax="100">
+          <div class="splash-track"><span class="splash-fill"></span></div>
+          <div class="splash-label">Cargando…</div>
+        </div>
       </div>
     </div>
     <div id="root"></div>
