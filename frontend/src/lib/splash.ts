@@ -28,18 +28,23 @@ interface SplashState {
   visible: boolean;
   /** Minimum time of the current showing (drives the progress bar length). */
   minMs: number;
-  show: (minMs?: number) => void;
+  /** The current showing covers the page at once instead of fading in. */
+  instant: boolean;
+  show: (minMs?: number, instant?: boolean) => void;
   hide: (minMs?: number) => void;
 }
 
 export const useSplash = create<SplashState>((set) => ({
   visible: true,
   minMs: ENTRY_MIN_MS,
-  show: (minMs = ENTRY_MIN_MS) => {
+  instant: false,
+  // instant: for when the page underneath is about to change in the same tick (after
+  // sign-in), so it must never be seen before the splash.
+  show: (minMs = ENTRY_MIN_MS, instant = false) => {
     if (timer) clearTimeout(timer);
     shownAt = Date.now();
     minVisible = minMs;
-    set({ visible: true, minMs });
+    set({ visible: true, minMs, instant });
   },
   hide: (minMs = minVisible) => {
     if (timer) clearTimeout(timer);

@@ -36,7 +36,7 @@ export default function Login() {
         anonymous: true,
         body: { email, password },
       });
-      useSplash.getState().show(); // covers the dashboard load; Inicio hides it
+      useSplash.getState().show(undefined, true); // covers the dashboard at once; Inicio hides it
       setSession(token, user);
       navigate('/', { replace: true });
     } catch (err) {

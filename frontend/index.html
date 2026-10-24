@@ -19,6 +19,8 @@
       #splash.splash-hide { opacity: 0; pointer-events: none; }
       #splash .splash-inner { display: flex; flex-direction: column; align-items: center; color: #fff; text-align: center; animation: splash-in 0.5s ease both; transition: transform 0.6s ease; }
       #splash.splash-hide .splash-inner { transform: scale(1.08); }
+      /* Covers the page at once (after sign-in) instead of fading in. */
+      #splash.splash-instant, #splash.splash-instant .splash-inner { transition: none; }
       #splash svg { width: 150px; height: 150px; animation: splash-pulse 1.8s ease-in-out infinite; }
       #splash .splash-name { margin-top: 18px; font: 800 56px/1 Inter, 'Segoe UI', system-ui, Roboto, sans-serif; letter-spacing: -0.02em; text-transform: lowercase; }
       #splash .splash-name span { color: #09B8CD; }

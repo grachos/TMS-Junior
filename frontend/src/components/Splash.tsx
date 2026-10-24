@@ -4,7 +4,7 @@
  * on sign-out), and runs its "Cargando" progress bar.
  */
 
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { useSplash } from '../lib/splash';
 
 /** Never leave the splash up if some page forgets (or fails) to call hide(). */
@@ -16,12 +16,16 @@ export function SplashController() {
   const visible = useSplash((s) => s.visible);
   const firstRun = useRef(true);
 
-  useEffect(() => {
+  // A layout effect: it runs before the browser paints the render that triggered it, so
+  // a page swapped in the same tick never shows up ahead of the splash.
+  useLayoutEffect(() => {
     const el = document.getElementById('splash');
     if (!el) return;
     const fill = el.querySelector<HTMLElement>('.splash-fill');
 
     if (visible) {
+      const instant = useSplash.getState().instant;
+      if (instant) el.classList.add('splash-instant');
       // The very first showing is the static markup already animating since the
       // first paint; only later showings restart the bar.
       const initial = firstRun.current;
@@ -40,8 +44,13 @@ export function SplashController() {
       void el.offsetWidth;
       el.classList.remove('splash-hide');
       el.classList.add('splash-run');
+      // Back to the normal fade for the hide that follows.
+      const settle = instant ? requestAnimationFrame(() => el.classList.remove('splash-instant')) : 0;
       const safety = setTimeout(() => useSplash.getState().hide(0), SAFETY_MS);
-      return () => clearTimeout(safety);
+      return () => {
+        cancelAnimationFrame(settle);
+        clearTimeout(safety);
+      };
     }
 
     // Finish the bar from wherever it is, then fade the splash out.
