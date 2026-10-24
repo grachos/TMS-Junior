@@ -24,8 +24,9 @@ export function SplashController() {
     const fill = el.querySelector<HTMLElement>('.splash-fill');
 
     if (visible) {
-      const instant = useSplash.getState().instant;
+      const { instant, mode } = useSplash.getState();
       if (instant) el.classList.add('splash-instant');
+      el.classList.toggle('splash-login', mode === 'login');
       // The very first showing is the static markup already animating since the
       // first paint; only later showings restart the bar.
       const initial = firstRun.current;

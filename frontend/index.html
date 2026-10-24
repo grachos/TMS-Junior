@@ -30,6 +30,8 @@
       #splash .splash-fill { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #09B8CD, #11B787); transition: width 0.35s ease; }
       /* Fills to ~92% over --splash-ms (the minimum time on screen); the controller finishes it at 100%. */
       #splash.splash-run .splash-fill { animation: splash-bar var(--splash-ms, 2500ms) cubic-bezier(0.22, 0.7, 0.3, 1) forwards; }
+      /* Login mode (no session): just the big logo, no progress bar; the login page shrinks it into place. */
+      #splash.splash-login .splash-loader { display: none; }
       #splash .splash-label { margin-top: 12px; font: 500 13px/1 Inter, 'Segoe UI', system-ui, Roboto, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.7); }
       @keyframes splash-bar { from { width: 0; } to { width: 92%; } }
       @keyframes splash-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
@@ -70,6 +72,13 @@
         </div>
       </div>
     </div>
+    <!-- Without a saved session the app lands on the login form, so skip the progress bar. -->
+    <script>
+      try {
+        var a = JSON.parse(localStorage.getItem('tms-auth') || 'null');
+        if (!(a && a.state && a.state.token)) document.getElementById('splash').classList.add('splash-login');
+      } catch (e) {}
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

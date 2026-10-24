@@ -1,8 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LogIn, Loader2 } from 'lucide-react';
 import { KonektoMark, KonektoWordmark } from '../components/Logo';
 import { api, ApiError } from '../lib/api';
+import { playLoginIntro } from '../lib/loginIntro';
 import { useSplash } from '../lib/splash';
 import { useAuthStore, type StaffUser } from '../store/auth';
 
@@ -21,9 +22,14 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // The login form is ready: let the splash fade out.
-  useEffect(() => {
-    useSplash.getState().hide();
+  const markRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLHeadingElement>(null);
+  const tagRef = useRef<HTMLParagraphElement>(null);
+  const cardRef = useRef<HTMLFormElement>(null);
+
+  // The form is laid out: the big splash logo shrinks into the logo block above it.
+  useLayoutEffect(() => {
+    playLoginIntro({ mark: markRef.current, name: nameRef.current, tag: tagRef.current, card: cardRef.current });
   }, []);
 
   async function onSubmit(e: FormEvent) {
@@ -47,16 +53,20 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-brand-navy p-4 dark:bg-brand-ink">
+    <div className="flex min-h-full items-center justify-center overflow-hidden bg-brand-navy p-4 dark:bg-brand-ink">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-white">
-          <KonektoMark size={64} tone="dark" className="mb-3" />
-          <h1 className="text-3xl">
+          <div ref={markRef} className="mb-3">
+            <KonektoMark size={64} tone="dark" />
+          </div>
+          <h1 ref={nameRef} className="text-3xl">
             <KonektoWordmark />
           </h1>
-          <p className="mt-1 text-xs font-medium uppercase tracking-[0.2em] text-white/60">Despacho &amp; RNDC Light</p>
+          <p ref={tagRef} className="mt-1 text-xs font-medium uppercase tracking-[0.2em] text-white/60">
+            Despacho &amp; RNDC Light
+          </p>
         </div>
-        <form onSubmit={onSubmit} className="card space-y-4">
+        <form ref={cardRef} onSubmit={onSubmit} className="card space-y-4">
           {expired && !error && (
             <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200">
               {TEXT.expired}
