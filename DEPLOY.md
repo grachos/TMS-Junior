@@ -67,6 +67,8 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v43_cola_tipo_documento_anulacion.sql   ← NUEVO — CRÍTICA, correr cuanto antes
    migracion_v44_estado_rndc_anulacion.sql   ← NUEVO — CRÍTICA, correr cuanto antes
    migracion_v45_reparar_anulacion_huerfana.sql   ← NUEVO — reparación puntual, idempotente
+   migracion_v46_contenedor_serial.sql
+   migracion_v47_unique_consecutivos.sql   ← NUEVO — llave única de No. manifiesto/remesa (ver nota)
    ```
 
    > **v43 y v44 corrigen corrupción silenciosa de datos, no son solo ajustes
@@ -81,6 +83,12 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    > estado real. Ejecútalas en orden (v43 antes que v44) antes de seguir
    > anulando.
    >
+   > **v47** agrega una llave única a `manifiesto.num_manifiesto` y
+   > `remesa.num_remesa`. Es repetible y no falla con datos existentes: si ya hay
+   > números repetidos, no crea esa llave y la última consulta los lista (tabla,
+   > número, ids). Corrígelos y vuelve a correrla; revisa que el resultado diga
+   > `llave_manifiesto_activa = 1` y `llave_remesa_activa = 1`.
+
    > **v45** repara un caso más puntual: si cancelaste un paso de anulación en
    > Cola *antes* de que existiera `revertirAnulacionSiNoQuedaNadaActivo()`
    > (commit `a022900`), ese manifiesto/remesa quedó atascado en

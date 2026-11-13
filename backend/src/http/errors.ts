@@ -41,6 +41,15 @@ export function errorMiddleware(err: unknown, _req: Request, res: Response, _nex
     });
     return;
   }
+  // A UNIQUE key rejected the write (e.g. a repeated manifiesto/remesa number,
+  // migracion_v47): nothing was saved, so tell the user to retry instead of a
+  // bare 500. Still logged — it means a guard upstream let a duplicate through.
+  if ((err as { code?: string } | null)?.code === 'ER_DUP_ENTRY') {
+    // eslint-disable-next-line no-console
+    console.error('[error] ER_DUP_ENTRY', err instanceof Error ? err.message : err);
+    res.status(409).json({ error: 'Ya existe un registro con ese número. No se guardó nada; intenta de nuevo.' });
+    return;
+  }
   const message = err instanceof Error ? err.message : String(err);
   // eslint-disable-next-line no-console
   console.error('[error]', message, err);

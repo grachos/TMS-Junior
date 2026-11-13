@@ -7,7 +7,7 @@
  * on the same connection.
  */
 
-import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
+import type { Pool, PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { db } from '../../db/pool.js';
 
 type Queryable = Pool | PoolConnection;
@@ -118,26 +118,49 @@ function extraerNum(val: string): number {
 
 const pad = (n: number, len: number) => String(n).padStart(len, '0');
 
-/** Reserves and returns the next remesa consecutivo (REM-00001). Port of siguienteRemesa(). */
-export async function siguienteRemesa(exec: Queryable = db()): Promise<string> {
-  const emp = await obtener(exec);
-  const next = extraerNum(emp.consecutivo_remesa ?? '0') + 1;
-  const fmt = 'REM-' + pad(next, 5);
-  await exec.query('UPDATE maestro_empresa SET consecutivo_remesa = :fmt WHERE id = 1 AND consecutivo_remesa = :prev', {
-    fmt,
-    prev: emp.consecutivo_remesa ?? '',
-  });
+/**
+ * Reserva el siguiente consecutivo (PREF-00001) de `columna` en maestro_empresa.
+ *
+ * Debe llamarse con la conexión de la transacción del despacho
+ * (confirmarDespacho): el `SELECT ... FOR UPDATE` bloquea la fila de la empresa
+ * hasta el COMMIT/ROLLBACK, así que dos despachos simultáneos se turnan y cada
+ * uno lee el número que dejó el anterior. Antes se leía sin bloqueo y el
+ * UPDATE condicional devolvía 0 filas sin que nadie lo revisara: 10 despachos
+ * simultáneos recibían el MISMO número (test/consecutivos.db.test.ts). Si la
+ * transacción hace rollback, el número no se consume.
+ *
+ * Segunda barrera: si el UPDATE no cambia exactamente una fila (p.ej. se llamó
+ * fuera de una transacción y otro proceso se adelantó) se lanza un error en
+ * vez de devolver un número repetido. La tercera es la llave única de
+ * migracion_v47.
+ */
+async function siguienteConsecutivo(
+  exec: Queryable,
+  columna: 'consecutivo_remesa' | 'consecutivo_manifiesto',
+  prefijo: 'REM' | 'MAN',
+): Promise<string> {
+  const [rows] = await exec.query<RowDataPacket[]>(
+    `SELECT ${columna} AS actual FROM maestro_empresa WHERE id = 1 FOR UPDATE`,
+  );
+  if (!rows[0]) throw new Error('No existe la fila de maestro_empresa (id = 1).');
+  const prev = String(rows[0].actual ?? '');
+  const fmt = `${prefijo}-` + pad(extraerNum(prev || '0') + 1, 5);
+  const [res] = await exec.query<ResultSetHeader>(
+    `UPDATE maestro_empresa SET ${columna} = :fmt WHERE id = 1 AND ${columna} = :prev`,
+    { fmt, prev },
+  );
+  if (res.affectedRows !== 1) {
+    throw new Error(`No se pudo reservar el consecutivo (${columna}): otro despacho lo tomó al mismo tiempo. Intenta de nuevo.`);
+  }
   return fmt;
 }
 
+/** Reserves and returns the next remesa consecutivo (REM-00001). Port of siguienteRemesa(). */
+export function siguienteRemesa(exec: Queryable = db()): Promise<string> {
+  return siguienteConsecutivo(exec, 'consecutivo_remesa', 'REM');
+}
+
 /** Reserves and returns the next manifiesto consecutivo (MAN-00001). Port of siguienteManifiesto(). */
-export async function siguienteManifiesto(exec: Queryable = db()): Promise<string> {
-  const emp = await obtener(exec);
-  const next = extraerNum(emp.consecutivo_manifiesto ?? '0') + 1;
-  const fmt = 'MAN-' + pad(next, 5);
-  await exec.query(
-    'UPDATE maestro_empresa SET consecutivo_manifiesto = :fmt WHERE id = 1 AND consecutivo_manifiesto = :prev',
-    { fmt, prev: emp.consecutivo_manifiesto ?? '' },
-  );
-  return fmt;
+export function siguienteManifiesto(exec: Queryable = db()): Promise<string> {
+  return siguienteConsecutivo(exec, 'consecutivo_manifiesto', 'MAN');
 }
