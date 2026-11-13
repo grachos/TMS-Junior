@@ -631,6 +631,28 @@ async function dependenciaPendiente(solicitudId: number, orden: number): Promise
   return Number(rows[0]?.n ?? 0) > 0;
 }
 
+/**
+ * Reclama una fila de la cola para enviarla: la pasa a 'enviando' solo si
+ * sigue en uno de `estados` (y, si `respetarProgramacion`, ya le toca por
+ * programado_para). Es una sola sentencia condicional, así que si el cron
+ * (drenar), un clic en "Procesar" y "Procesar despacho" corren a la vez, solo
+ * uno gana y los demás reciben null — antes cada uno hacía
+ * `UPDATE ... SET estado='enviando' WHERE id=?` sin condición y la misma
+ * remesa/manifiesto se enviaba dos veces al RNDC (ver
+ * test/cola_reclamo.db.test.ts). Devuelve la fila releída tras el reclamo
+ * (intentos/payload frescos), o null si otro proceso ya la tomó, la canceló o
+ * la reemplazó.
+ */
+async function reclamarFila(id: number, estados: string[], respetarProgramacion = false): Promise<Row | null> {
+  const [res] = await db().query<ResultSetHeader>(
+    `UPDATE cola_envios SET estado = 'enviando'
+     WHERE id = ? AND estado IN (?)${respetarProgramacion ? ' AND (programado_para IS NULL OR programado_para <= NOW())' : ''}`,
+    [id, estados],
+  );
+  if (res.affectedRows !== 1) return null;
+  return fila(db(), 'SELECT * FROM cola_envios WHERE id = ?', [id]);
+}
+
 /** Sends a row by type (masters via their repos; documents via XML). Port of enviarFila(). */
 async function enviarFila(rndc: RndcClient, row: Row): Promise<RndcRespuesta> {
   switch (row.tipo_documento) {
@@ -1144,9 +1166,10 @@ export async function drenar(): Promise<DrenarResult> {
       res.esperando++;
       continue;
     }
-    await db().query("UPDATE cola_envios SET estado = 'enviando' WHERE id = ?", [id]);
-    const resp = await enviarFila(rndc, row);
-    await aplicarResultado(row, resp, minutos);
+    const reclamada = await reclamarFila(id, ['pendiente'], true);
+    if (reclamada === null) continue; // otro proceso ya la está enviando (o la canceló)
+    const resp = await enviarFila(rndc, reclamada);
+    await aplicarResultado(reclamada, resp, minutos);
     if (resp.ok) res.enviados++;
     else res.errores++;
   }
@@ -1327,9 +1350,12 @@ export async function procesarItem(colaId: number): Promise<ItemResult> {
   if (await dependenciaPendiente(Number(row.solicitud_id), Number(row.orden))) {
     return { ok: false, mensaje: 'Hay dependencias pendientes para esta solicitud.' };
   }
-  await db().query("UPDATE cola_envios SET estado = 'enviando' WHERE id = ?", [id]);
-  const resp = await enviarFila(rndc, row);
-  await aplicarResultado(row, resp, minutos);
+  const reclamada = await reclamarFila(id, ['pendiente', 'error']);
+  if (reclamada === null) {
+    return { ok: false, mensaje: 'Este envío ya se está procesando (o cambió de estado). Actualiza la cola.' };
+  }
+  const resp = await enviarFila(rndc, reclamada);
+  await aplicarResultado(reclamada, resp, minutos);
   return resp.ok ? { ok: true, mensaje: 'Enviado correctamente.' } : { ok: false, mensaje: resp.error ?? 'Error.' };
 }
 
@@ -1365,9 +1391,10 @@ export async function procesarDespacho(manifiestoId: number): Promise<ItemResult
       continue;
     }
     if (await dependenciaPendiente(Number(row.solicitud_id), Number(row.orden))) continue;
-    await db().query("UPDATE cola_envios SET estado = 'enviando' WHERE id = ?", [id]);
-    const resp = await enviarFila(rndc, row);
-    await aplicarResultado(row, resp, minutos);
+    const reclamada = await reclamarFila(id, ['pendiente', 'error']);
+    if (reclamada === null) continue; // otro proceso ya la está enviando
+    const resp = await enviarFila(rndc, reclamada);
+    await aplicarResultado(reclamada, resp, minutos);
     if (resp.ok) enviados++;
     else errores++;
   }
