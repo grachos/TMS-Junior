@@ -118,7 +118,7 @@ export default function ImpuestosPage() {
         <legend className="px-1 text-sm font-semibold text-celeste-700">ICA por municipio de origen</legend>
         <p className="mt-1 text-xs text-slate-500">
           El ICA se cobra según la ciudad de origen del viaje. Al elegir el remitente en una solicitud, se propone la tarifa (por mil) de su
-          municipio; se puede ajustar en esa solicitud, que conserva la tarifa con la que se guarda. Un municipio sin tarifa queda en 0 con una advertencia.
+          municipio, y los centros poblados (corregimientos) usan la tarifa de su municipio. Se puede ajustar en esa solicitud, que conserva la tarifa con la que se guarda. Un municipio sin tarifa queda en 0 con una advertencia. La tarifa admite hasta 2 decimales.
         </p>
         <form onSubmit={agregar} className="mt-3 grid gap-3 sm:grid-cols-[1fr_180px_auto]">
           <div>
@@ -127,13 +127,14 @@ export default function ImpuestosPage() {
               initialLabel={nuevo.label}
               onClear={() => setNuevo({ codigo: '', label: '' })}
               onSelect={(codigo, label) => setNuevo({ codigo, label })}
+              soloMunicipios
             />
           </div>
           <div>
             <label className="field-label">Tarifa (por mil)</label>
             <input
               type="number"
-              step="0.001"
+              step="0.01"
               min="0"
               max="100"
               className="field-input"
@@ -201,7 +202,7 @@ export default function ImpuestosPage() {
                       <input
                         autoFocus
                         type="number"
-                        step="0.001"
+                        step="0.01"
                         min="0"
                         max="100"
                         className="field-input w-32"

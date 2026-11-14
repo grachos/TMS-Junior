@@ -18,6 +18,8 @@ interface MunicipioAutocompleteProps {
   /** Text shown initially (e.g. when editing an existing record). */
   initialLabel?: string;
   placeholder?: string;
+  /** Offer only municipalities (not their centros poblados). Used where the rule is municipal, e.g. ICA. */
+  soloMunicipios?: boolean;
 }
 
 export function MunicipioAutocomplete({
@@ -25,10 +27,12 @@ export function MunicipioAutocomplete({
   onClear,
   initialLabel = '',
   placeholder = 'Escribe y elige…',
+  soloMunicipios = false,
 }: MunicipioAutocompleteProps) {
   return (
     <Autocomplete
       endpoint="/municipios/buscar"
+      params={soloMunicipios ? { solo_municipios: 1 } : undefined}
       placeholder={placeholder}
       initialLabel={initialLabel}
       onClear={onClear}

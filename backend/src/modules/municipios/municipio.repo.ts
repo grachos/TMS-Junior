@@ -18,7 +18,7 @@ export interface MunicipioBuscarRow extends MunicipioRow {
 }
 
 /** Search municipios by name or code (autocomplete). Port of buscar(). */
-export async function buscar(q: string, limite = 15): Promise<MunicipioBuscarRow[]> {
+export async function buscar(q: string, limite = 15, soloMunicipios = false): Promise<MunicipioBuscarRow[]> {
   const term = q.trim();
   if (term === '') return [];
   const like = `%${term}%`;
@@ -26,7 +26,8 @@ export async function buscar(q: string, limite = 15): Promise<MunicipioBuscarRow
   const [rows] = await db().query<(MunicipioRow & RowDataPacket)[]>(
     `SELECT codigo_rndc, nombre_completo, nombre_mpio, nombre, departamento
      FROM municipio
-     WHERE nombre LIKE :like OR nombre_completo LIKE :like OR codigo_rndc LIKE :like OR nombre_mpio LIKE :like
+     WHERE (nombre LIKE :like OR nombre_completo LIKE :like OR codigo_rndc LIKE :like OR nombre_mpio LIKE :like)
+       ${soloMunicipios ? "AND codigo_rndc LIKE '%000'" : ''}
      ORDER BY (nombre LIKE :prefix) DESC, nombre
      LIMIT ${Number(limite)}`,
     { like, prefix },

@@ -21,6 +21,43 @@ export async function nombreMunicipio(exec: Queryable, codigo: string): Promise<
   return rows[0] ? String(rows[0].nombre_completo) : null;
 }
 
+export interface UbicacionIca {
+  codigo_rndc: string;
+  municipio: string;
+  /** DIVIPOLA code of the municipality the ICA belongs to (DANE code + '000'). */
+  cabecera_codigo: string;
+  cabecera_nombre: string;
+  /** True when the code is a centro poblado (Palmitas, Santa Elena...) of that municipality. */
+  hereda: boolean;
+}
+
+/**
+ * ICA is a MUNICIPAL tax. DIVIPOLA lists every locality (7.845) under its
+ * municipality's DANE code: Palmitas (05001001) belongs to Medellín
+ * (05001000), the one whose code is the DANE code + '000'. A remitente located
+ * in a centro poblado is taxed with its municipality's tariff.
+ * Returns null if the code doesn't exist.
+ */
+export async function ubicacionIca(exec: Queryable, codigo: string): Promise<UbicacionIca | null> {
+  const [rows] = await exec.query<RowDataPacket[]>(
+    `SELECT m.codigo_rndc, m.nombre_completo, c.codigo_rndc AS cab_codigo, c.nombre_completo AS cab_nombre
+     FROM municipio m
+     LEFT JOIN municipio c ON c.codigo_rndc = CONCAT(m.codigo_dane, '000')
+     WHERE m.codigo_rndc = ?`,
+    [codigo],
+  );
+  const r = rows[0];
+  if (!r) return null;
+  const cabecera = r.cab_codigo ? String(r.cab_codigo) : String(r.codigo_rndc);
+  return {
+    codigo_rndc: String(r.codigo_rndc),
+    municipio: String(r.nombre_completo),
+    cabecera_codigo: cabecera,
+    cabecera_nombre: r.cab_nombre ? String(r.cab_nombre) : String(r.nombre_completo),
+    hereda: cabecera !== String(r.codigo_rndc),
+  };
+}
+
 /** The configured tariff for a municipio (null = none configured). */
 export async function tarifaDe(exec: Queryable, codigo: string): Promise<number | null> {
   const [rows] = await exec.query<RowDataPacket[]>('SELECT tarifa_por_mil FROM ica_municipio WHERE codigo_rndc = ?', [codigo]);

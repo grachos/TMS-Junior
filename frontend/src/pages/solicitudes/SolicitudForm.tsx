@@ -145,15 +145,22 @@ export default function SolicitudForm() {
       return;
     }
     let tarifa: number | null = null;
+    let origen = municipioNombre || codMunicipio;
     try {
-      tarifa = (await api<{ tarifa_por_mil: number | null }>(`/impuestos/ica/${encodeURIComponent(codMunicipio)}`)).tarifa_por_mil;
+      const r = await api<{ tarifa_por_mil: number | null; municipio: string | null; cabecera_nombre: string | null; hereda: boolean }>(
+        `/impuestos/ica/${encodeURIComponent(codMunicipio)}`,
+      );
+      tarifa = r.tarifa_por_mil;
+      // ICA is municipal: a centro poblado (e.g. Palmitas) uses its municipality's (Medellín) tariff.
+      if (r.hereda && r.cabecera_nombre) origen = `${r.cabecera_nombre} (${r.municipio ?? municipioNombre} pertenece a ese municipio)`;
+      else if (r.municipio) origen = r.municipio;
     } catch {
       if (turno === consultaIca.current) setIcaAviso({ kind: 'warn', text: 'No se pudo consultar la tarifa de ICA del municipio de origen. Escríbela a mano.' });
       return;
     }
     if (turno !== consultaIca.current) return;
     const propuesta = tarifa === null ? '0' : String(tarifa);
-    const nombre = municipioNombre || codMunicipio;
+    const nombre = origen;
     // Latest value of the field (the user may have typed while the lookup ran).
     const actual = icaActual.current;
     if (actual === '' || actual === icaPropuesta.current) {
@@ -430,7 +437,7 @@ export default function SolicitudForm() {
             </div>
             <div>
               <label className="field-label">Tarifa ICA (por mil)</label>
-              <input type="number" step="0.001" className="field-input" value={f.porcentaje_ica} onChange={(e) => set('porcentaje_ica', e.target.value)} />
+              <input type="number" step="0.01" className="field-input" value={f.porcentaje_ica} onChange={(e) => set('porcentaje_ica', e.target.value)} />
               {icaAviso && (
                 <p className={`mt-1 flex items-start gap-1 text-xs ${icaAviso.kind === 'warn' ? 'text-amber-700' : 'text-slate-500'}`} role={icaAviso.kind === 'warn' ? 'alert' : 'status'}>
                   {icaAviso.kind === 'warn' && <AlertTriangle size={13} className="mt-0.5 shrink-0" />}

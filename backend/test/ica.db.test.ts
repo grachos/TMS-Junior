@@ -32,9 +32,11 @@ const solicitudes: number[] = [];
 let tokenAdmin = '';
 let tokenOperador = '';
 let adminId = 0;
-let A = ''; // municipio de prueba 1
-let B = ''; // municipio de prueba 2
+let A = ''; // municipio de prueba 1 (cabecera: código DANE + '000')
+let B = ''; // municipio de prueba 2 (cabecera)
 let nombreA = '';
+let CP = ''; // centro poblado que pertenece al municipio A (p.ej. Palmitas de Medellín)
+let nombreCP = '';
 
 async function usuario(nombre: string, rol: 'admin' | 'operador'): Promise<{ token: string; id: number }> {
   const email = `${nombre}.${sufijo}@test.local`;
@@ -67,15 +69,20 @@ describe.skipIf(!RUN)('ICA por municipio de origen', () => {
     tokenAdmin = admin.token;
     adminId = admin.id;
     tokenOperador = (await usuario('icaop', 'operador')).token;
-    const [mun] = await db().query<RowDataPacket[]>('SELECT codigo_rndc, nombre_completo FROM municipio ORDER BY codigo_rndc LIMIT 2');
+    // Municipios (cabeceras) y un centro poblado de A: el ICA es un impuesto
+    // municipal, así que un centro poblado usa la tarifa de su municipio.
+    const [mun] = await db().query<RowDataPacket[]>("SELECT codigo_rndc, nombre_completo FROM municipio WHERE codigo_rndc LIKE '%000' ORDER BY codigo_rndc LIMIT 2");
     A = String(mun[0]!.codigo_rndc);
     B = String(mun[1]!.codigo_rndc);
     nombreA = String(mun[0]!.nombre_completo);
-    await db().query('DELETE FROM ica_municipio WHERE codigo_rndc IN (?, ?)', [A, B]);
+    const [cp] = await db().query<RowDataPacket[]>('SELECT codigo_rndc, nombre_completo FROM municipio WHERE codigo_dane = LEFT(?, 5) AND codigo_rndc <> ? ORDER BY codigo_rndc LIMIT 1', [A, A]);
+    CP = String(cp[0]!.codigo_rndc);
+    nombreCP = String(cp[0]!.nombre_completo);
+    await db().query('DELETE FROM ica_municipio WHERE codigo_rndc IN (?, ?, ?)', [A, B, CP]);
   });
 
   afterAll(async () => {
-    await db().query('DELETE FROM ica_municipio WHERE codigo_rndc IN (?, ?)', [A, B]);
+    await db().query('DELETE FROM ica_municipio WHERE codigo_rndc IN (?, ?, ?)', [A, B, CP]);
     if (solicitudes.length) await db().query('DELETE FROM solicitud_servicio WHERE id IN (?)', [solicitudes]);
     if (usuarios.length) {
       await db().query('DELETE FROM auditoria WHERE usuario_id IN (?)', [usuarios]);
@@ -113,7 +120,9 @@ describe.skipIf(!RUN)('ICA por municipio de origen', () => {
     ['no numérica', { tarifa_por_mil: 'abc' }],
     ['vacía', { tarifa_por_mil: '' }],
     ['ausente', {}],
-    ['con más de 3 decimales', { tarifa_por_mil: 9.6612 }],
+    // La columna porcentaje_ica de la solicitud guarda 2 decimales: con 3 se
+    // redondearía distinto de como se calcula la retención.
+    ['con más de 2 decimales', { tarifa_por_mil: 9.665 }],
   ])('rechaza una tarifa %s', async (_nombre, body) => {
     const r = await llamar('PUT', `/api/impuestos/ica/${B}`, tokenAdmin, body);
     expect(r.status).toBe(400);
@@ -124,6 +133,40 @@ describe.skipIf(!RUN)('ICA por municipio de origen', () => {
     const r = await llamar('PUT', '/api/impuestos/ica/99999999', tokenAdmin, { tarifa_por_mil: 5 });
     expect(r.status).toBe(404);
     expect(await tarifaEnDb('99999999')).toBeNull();
+  });
+
+  it('un centro poblado usa la tarifa de su municipio, y la respuesta lo dice', async () => {
+    await llamar('PUT', `/api/impuestos/ica/${A}`, tokenAdmin, { tarifa_por_mil: 9.66 });
+    const r = await llamar('GET', `/api/impuestos/ica/${CP}`, tokenOperador);
+    expect(await r.json()).toMatchObject({
+      codigo_rndc: CP, municipio: nombreCP, tarifa_por_mil: 9.66, hereda: true, cabecera_codigo: A, cabecera_nombre: nombreA,
+    });
+    const propio = await (await llamar('GET', `/api/impuestos/ica/${A}`, tokenOperador)).json();
+    expect(propio).toMatchObject({ hereda: false, cabecera_codigo: A, tarifa_por_mil: 9.66 });
+  });
+
+  it('un centro poblado sin tarifa de municipio se consulta como null', async () => {
+    await db().query('DELETE FROM ica_municipio WHERE codigo_rndc = ?', [A]);
+    const r = await llamar('GET', `/api/impuestos/ica/${CP}`, tokenOperador);
+    expect(await r.json()).toMatchObject({ tarifa_por_mil: null, hereda: true, cabecera_codigo: A });
+    await llamar('PUT', `/api/impuestos/ica/${A}`, tokenAdmin, { tarifa_por_mil: 9.66 });
+  });
+
+  it('no se puede configurar ni quitar la tarifa de un centro poblado: se elige el municipio', async () => {
+    const put = await llamar('PUT', `/api/impuestos/ica/${CP}`, tokenAdmin, { tarifa_por_mil: 5 });
+    expect(put.status).toBe(400);
+    expect(((await put.json()) as { error: string }).error).toContain(nombreA);
+    expect(await tarifaEnDb(CP)).toBeNull();
+    expect((await llamar('DELETE', `/api/impuestos/ica/${CP}`, tokenAdmin)).status).toBe(400);
+  });
+
+  it('el buscador de municipios puede limitarse a municipios (sin centros poblados)', async () => {
+    const buscar = async (q: string, soloMunicipios: boolean) =>
+      ((await (await llamar('GET', `/api/municipios/buscar?q=${encodeURIComponent(q)}${soloMunicipios ? '&solo_municipios=1' : ''}`, tokenAdmin)).json()) as { codigo_rndc: string }[]).map((m) => m.codigo_rndc);
+    const nombre = nombreCP.split(',')[0]!;
+    expect(await buscar(nombre, false)).toContain(CP);
+    expect(await buscar(nombre, true)).not.toContain(CP);
+    expect(await buscar(nombreA.split(',')[0]!, true)).toContain(A);
   });
 
   it('acepta 0 (municipio exento) y los extremos 0 y 100', async () => {
