@@ -12,7 +12,8 @@ import { db, withTransaction } from '../../db/pool.js';
 import * as terceroRepo from '../terceros/tercero.repo.js';
 import * as empresaRepo from '../empresa/empresa.repo.js';
 import * as cola from '../cola/cola.repo.js';
-import { pesoAsignadoSolicitud } from '../../util/pesoSolicitud.js';
+import { pesoAsignadoSolicitud, pesoTotalDe } from '../../util/pesoSolicitud.js';
+import { badRequest, conflict, notFound } from '../../http/errors.js';
 
 type Queryable = Pool | PoolConnection;
 type Row = Record<string, any>;
@@ -222,12 +223,48 @@ export async function confirmarDespacho(id: number, datos: Row): Promise<void> {
       fila[c] = valor === '' || valor === undefined || valor === null ? null : (valor as SqlValue);
     }
 
-    // Decrement remaining vehicles; mark despachada when it reaches 0.
+    // Lock the solicitud FIRST and validate after locking: concurrent
+    // dispatches of the same solicitud (double click, retry after a timeout)
+    // now take turns, and each one sees what the previous one committed.
+    // Before, the route checked estado/vehicles/weight from an unlocked read
+    // and this read had no lock either, so 3 simultaneous requests on a
+    // 1-vehicle solicitud created 3 manifiestos (test/despacho_doble.db.test.ts).
+    // Lock order for every dispatch: solicitud_servicio → maestro_empresa
+    // (consecutivos, empresa.repo.ts) — keep it the same everywhere.
     const [restRows] = await conn.query<RowDataPacket[]>(
-      'SELECT cantidad_vehiculos FROM solicitud_servicio WHERE id = ?',
+      'SELECT estado, cantidad_vehiculos, peso FROM solicitud_servicio WHERE id = ? FOR UPDATE',
       [id],
     );
-    const restantes = Number((restRows[0] as Row | undefined)?.cantidad_vehiculos ?? 1) || 1;
+    const actual = restRows[0] as Row | undefined;
+    if (!actual) throw notFound('Solicitud no encontrada.');
+    if (actual.estado === 'despachada' || actual.estado === 'anulada') {
+      throw conflict(actual.estado === 'despachada' ? 'La solicitud ya fue despachada.' : 'La solicitud está anulada.');
+    }
+    // No `|| 1` fallback: 0 vehicles left means nothing left to dispatch.
+    const restantes = Number(actual.cantidad_vehiculos ?? 0);
+    if (!(restantes >= 1)) throw conflict('Ya no quedan vehículos por despachar en esta solicitud.');
+
+    // Weight budget, also under the lock (remesas committed by a concurrent
+    // dispatch are visible here because the read happens after the lock).
+    const pesoTotal = Number(actual.peso ?? 0);
+    if (pesoTotal > 0) {
+      const pesoDisponible = pesoTotal - (await pesoAsignadoSolicitud(conn, id));
+      if (pesoDisponible <= 0) {
+        throw badRequest(
+          `Ya se agotó el peso disponible de esta solicitud (${pesoTotal.toLocaleString('es-CO')} kg). No es posible despachar más remesas.`,
+        );
+      }
+      // No custom remesas -> one default remesa that inherits the solicitud's full peso.
+      const remesasBody = Array.isArray(datos.remesas) ? datos.remesas : [];
+      const pesoNuevo = remesasBody.length > 0 ? pesoTotalDe(remesasBody) : pesoTotal;
+      if (pesoNuevo - pesoDisponible > 0.001) {
+        throw badRequest(
+          `El peso de las remesas (${pesoNuevo.toLocaleString('es-CO')} kg) supera el peso disponible ` +
+            `(${pesoDisponible.toLocaleString('es-CO')} kg) de esta solicitud.`,
+        );
+      }
+    }
+
     const nuevosRestantes = Math.max(0, restantes - 1);
     fila.cantidad_vehiculos = nuevosRestantes;
     fila.estado = nuevosRestantes > 0 ? 'procesada' : 'despachada';
