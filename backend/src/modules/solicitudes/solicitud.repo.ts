@@ -69,6 +69,12 @@ async function prepararFila(datos: Row): Promise<Record<string, SqlValue>> {
     const valor = datos[c];
     fila[c] = valor === '' || valor === undefined || valor === null ? null : (valor as SqlValue);
   }
+  // The vehicle count drives how many times the solicitud can be dispatched.
+  // Missing/invalid used to give a 500 (NOT NULL column) or silently default to 1.
+  const cantidad = Number(fila.cantidad_vehiculos);
+  if (fila.cantidad_vehiculos === null || !Number.isInteger(cantidad) || cantidad < 1) {
+    throw badRequest('La cantidad de vehículos es obligatoria y debe ser un número entero de 1 o más.');
+  }
   // `interna` is NOT NULL: never let '' become NULL (500). A client that doesn't
   // send it keeps the current value (see actualizar()).
   if (datos.interna !== undefined) fila.interna = bit(datos.interna);
@@ -120,6 +126,17 @@ export async function actualizar(id: number, datos: Row, actor: Actor = ACTOR_SI
   const fila = await prepararFila(datos);
   await withTransaction(async (conn) => {
     const [antesRows] = await conn.query<RowDataPacket[]>('SELECT * FROM solicitud_servicio WHERE id = ? FOR UPDATE', [id]);
+    if (!antesRows[0]) throw notFound('Solicitud no encontrada.');
+    // The route checks "borrador" BEFORE this lock, so an edit that was waiting
+    // on a dispatch would otherwise overwrite cantidad_vehiculos (the form's
+    // value) and hand back the vehicle slot the dispatch just used. Re-check
+    // under the lock: confirmarDespacho takes the same lock first.
+    if (antesRows[0].estado !== 'borrador') {
+      throw conflict('La solicitud ya no está en borrador (cambió mientras la editabas): no se puede editar.');
+    }
+    // A draft has not consumed any slot, so the count the form sends is also
+    // the original count (the list shows X/Y; an annulment gives slots back up to it).
+    fila.cantidad_vehiculos_original = fila.cantidad_vehiculos ?? null;
     // "Interna" (nothing goes to the RNDC) can't change once the solicitud has
     // any dispatch — annulled ones included, since their documents already
     // exist in one series or the other. confirmarDespacho takes the same row
