@@ -11,9 +11,11 @@ import {
   registrarIntento as registrarIntentoLegacy, marcarIntentoExitoso as marcarIntentoExitosoLegacy, LOGIN_MAX_FALLOS, LOGIN_VENTANA_MIN,
 } from './auth.repo.js';
 import {
-  auditarAcceso, hashIdentificador, limitesPorDefecto, marcarExito, registrarIntento,
+  auditarAcceso, hashIdentificador, limitesPorDefecto, marcarExito, quitarIdentificador, registrarIntento,
 } from './accesoGuard.js';
 import { signToken } from './jwt.js';
+import { config } from '../../config/env.js';
+import { MENSAJES_CAPTCHA, verifyTurnstile } from './turnstile.js';
 import { requireAuth } from './auth.middleware.js';
 
 const loginSchema = z.object({
@@ -32,6 +34,15 @@ const HASH_FALSO = bcrypt.hashSync('contraseña-que-nadie-tiene', 10);
 
 const MSG_BLOQUEO_CUENTA = (min: number) => `Demasiados intentos fallidos. Espera ${min} minutos e intenta de nuevo.`;
 const MSG_BLOQUEO_IP = 'Demasiadas solicitudes desde esta conexión. Intenta de nuevo en unos minutos.';
+
+/**
+ * GET /api/auth/captcha-config -> { enforce, siteKey }. La clave PÚBLICA la entrega el
+ * servidor (así se cambia sin recompilar el frontend); la secreta nunca sale de aquí.
+ */
+authRouter.get('/captcha-config', (_req, res) => {
+  const t = config().turnstile;
+  res.json({ enforce: t.enforce, siteKey: t.enforce ? t.siteKey || null : null });
+});
 
 /** POST /api/auth/login -> { token, user } */
 authRouter.post(
@@ -79,6 +90,18 @@ authRouter.post(
         if ((e2 as { code?: string }).code !== 'ER_NO_SUCH_TABLE') throw e2;
         // eslint-disable-next-line no-console
         console.error('[auth] Falta también login_intentos (migracion_v48): el login no tiene límite de intentos.');
+      }
+    }
+
+    // Reto anti-bots (si está activo), DESPUÉS del límite por IP: un bot bloqueado no gasta llamadas a
+    // Cloudflare. Un reto fallido cuenta contra la IP pero NO contra la cuenta (si no, cualquiera podría
+    // bloquear la cuenta de otra persona sin conocer la contraseña).
+    if (config().turnstile.enforce) {
+      const reto = await verifyTurnstile(req.body?.['cf-turnstile-response'], 'login', req.ip);
+      if (!reto.ok) {
+        if (intentoId !== null) await quitarIdentificador(intentoId);
+        await auditarAcceso({ ip, userAgent, identificadorHash, usuarioId: null, resultado: 'CAPTCHA_FALLIDO' });
+        throw new AppError(403, MENSAJES_CAPTCHA[reto.code]);
       }
     }
 

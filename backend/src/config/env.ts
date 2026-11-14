@@ -49,6 +49,8 @@ export interface AppConfig {
   auth: { jwtSecret: string; jwtExpires: string };
   /** Detrás de cuántos proxies está (para leer la IP real del visitante) y modo de la CSP. */
   seguridad: { trustProxy: number; cspModo: string };
+  /** Cloudflare Turnstile en el login. enforce=false es la palanca de emergencia (y el estado de un sitio aún sin claves). */
+  turnstile: { enforce: boolean; siteKey: string; secretKey: string; allowedHostnames: string[] };
   db: { host: string; port: number; name: string; user: string; pass: string; charset: string };
   /** Read-only DB user for the chatbot (least privilege). Falls back to the main user. */
   dbReadonly: { user: string; pass: string };
@@ -94,6 +96,17 @@ export function config(): AppConfig {
       // Hostinger pone UN proxy delante de la app. 0 = sin proxy (la IP es la de la conexión).
       trustProxy: int('TRUST_PROXY', 1),
       cspModo: str('CSP_MODO', 'report'),
+    },
+    turnstile: {
+      // Apagado por defecto: un sitio sin claves no debe quedar bloqueado al recibir el código.
+      // Con TURNSTILE_ENFORCE=true el login exige el reto y FALLA CERRADO si falta algo (clave, dominio).
+      enforce: bool('TURNSTILE_ENFORCE', false),
+      siteKey: str('TURNSTILE_SITE_KEY', ''),
+      secretKey: str('TURNSTILE_SECRET_KEY', ''),
+      allowedHostnames: str('TURNSTILE_ALLOWED_HOSTNAMES', '')
+        .split(',')
+        .map((h) => h.trim().toLowerCase())
+        .filter(Boolean),
     },
     db: {
       host: str('DB_HOST', 'localhost'),

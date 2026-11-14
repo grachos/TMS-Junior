@@ -6,6 +6,7 @@ import { api, ApiError } from '../lib/api';
 import { playLoginIntro } from '../lib/loginIntro';
 import { useSplash } from '../lib/splash';
 import { useAuthStore, type StaffUser } from '../store/auth';
+import { useTurnstile } from '../lib/useTurnstile';
 
 /** UI strings, in one place to ease translation. */
 const TEXT = {
@@ -22,6 +23,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const captcha = useTurnstile('login');
 
   const markRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLHeadingElement>(null);
@@ -41,7 +44,7 @@ export default function Login() {
       const { token, user } = await api<{ token: string; user: StaffUser }>('/auth/login', {
         method: 'POST',
         anonymous: true,
-        body: { email, password },
+        body: { email, password, ...captcha.payload },
       });
       useSplash.getState().show(undefined, true); // covers the dashboard at once; Inicio hides it
       setSession(token, user);
@@ -49,6 +52,8 @@ export default function Login() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar sesión.');
     } finally {
+      // El token del reto es de un solo uso: ya se gastó, salga bien o mal.
+      captcha.reset();
       setLoading(false);
     }
   }
@@ -112,10 +117,14 @@ export default function Login() {
               </button>
             </div>
           </div>
+          {captcha.widget}
+          {captcha.message && !error && (
+            <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200">{captcha.message}</p>
+          )}
           {error && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">{error}</p>
           )}
-          <button type="submit" className="btn-primary w-full" disabled={loading}>
+          <button type="submit" className="btn-primary w-full" disabled={loading || !captcha.canSubmit}>
             {loading ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
             Ingresar
           </button>
