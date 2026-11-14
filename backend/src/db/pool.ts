@@ -74,26 +74,45 @@ export async function dbDisponible(): Promise<{ ok: boolean; error?: string }> {
   }
 }
 
+/** MySQL/MariaDB error number for "Deadlock found when trying to get lock". */
+const ER_LOCK_DEADLOCK = 1213;
+/** Extra attempts after the first one when the transaction is a deadlock victim. */
+const REINTENTOS_DEADLOCK = 2;
+
 /**
  * Runs `fn` inside a transaction on a dedicated connection, committing on
- * success and rolling back on any throw. Ports the beginTransaction/commit/
- * rollBack pattern used by SolicitudRepo::confirmarDespacho and cumplido.guardar.
+ * success and rolling back on any throw.
+ *
+ * If the database picks this transaction as a deadlock victim (errno 1213),
+ * InnoDB has already rolled it back completely, so the WHOLE transaction is
+ * run again (up to 2 more times, after a random 20-100 ms pause) instead of
+ * surfacing a 500 to the user. That is why `fn` must contain only database
+ * work: no RNDC/HTTP calls, emails or other side effects that a repeat would
+ * duplicate (do those after the commit). Any other error is not retried.
  */
 export async function withTransaction<T>(fn: (conn: PoolConnection) => Promise<T>): Promise<T> {
-  const conn = await db().getConnection();
-  try {
-    await conn.beginTransaction();
-    const result = await fn(conn);
-    await conn.commit();
-    return result;
-  } catch (e) {
+  for (let intento = 0; ; intento++) {
+    const conn = await db().getConnection();
     try {
-      await conn.rollback();
-    } catch {
-      /* ignore rollback errors */
+      await conn.beginTransaction();
+      const result = await fn(conn);
+      await conn.commit();
+      return result;
+    } catch (e) {
+      try {
+        await conn.rollback();
+      } catch {
+        /* ignore rollback errors */
+      }
+      if ((e as { errno?: number }).errno === ER_LOCK_DEADLOCK && intento < REINTENTOS_DEADLOCK) {
+        // eslint-disable-next-line no-console
+        console.warn(`[db] Deadlock: se reintenta la transacción (intento ${intento + 2} de ${REINTENTOS_DEADLOCK + 1}).`);
+        await new Promise((r) => setTimeout(r, 20 + Math.random() * 80));
+        continue;
+      }
+      throw e;
+    } finally {
+      conn.release();
     }
-    throw e;
-  } finally {
-    conn.release();
   }
 }

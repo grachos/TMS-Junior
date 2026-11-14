@@ -140,4 +140,46 @@ describe.skipIf(!RUN)('cola_envios: reclamo atómico antes de enviar al RNDC', (
     await Promise.all([cola.drenar(), cola.drenar()]);
     expect(enviosDe(id)).toBe(1);
   });
+
+  // Hallazgo #8: marcar la fila 'enviado' y el documento origen ('aceptado')
+  // debe ser atómico. Si la segunda escritura falla, antes quedaba la cola en
+  // 'enviado' y la remesa en 'pendiente' para siempre.
+  it('si falla marcar el documento origen, la fila NO queda "enviado" y se recupera luego', async () => {
+    const [s] = await db().query<import('mysql2').ResultSetHeader>(
+      "INSERT INTO solicitud_servicio (fecha_solicitud, cantidad_vehiculos, cantidad_vehiculos_original, estado) VALUES (CURDATE(), 0, 1, 'procesada')",
+    );
+    const [r] = await db().query<import('mysql2').ResultSetHeader>(
+      "INSERT INTO remesa (solicitud_id, num_remesa, estado_rndc) VALUES (?, ?, 'pendiente')",
+      [s.insertId, `REM-ATOM-${s.insertId}`],
+    );
+    const [c] = await db().query<import('mysql2').ResultSetHeader>(
+      `INSERT INTO cola_envios (solicitud_id, manifiesto_id, tipo_documento, referencia_id, proceso_rndc, orden, payload_xml, estado)
+       VALUES (?, NULL, 'remesa', ?, 3, 30, '<x>fila=0</x>', 'pendiente')`,
+      [solicitudId, r.insertId],
+    );
+    const trigger = `falla_remesa_${r.insertId}`;
+    await db().query(
+      `CREATE TRIGGER ${trigger} BEFORE UPDATE ON remesa FOR EACH ROW
+       BEGIN IF NEW.id = ${r.insertId} AND NEW.estado_rndc = 'aceptado' THEN
+         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'falla simulada al marcar la remesa'; END IF; END`,
+    );
+    try {
+      await expect(cola.procesarItem(c.insertId)).rejects.toThrow(/falla simulada/);
+      const [[fila]] = await db().query<import('mysql2').RowDataPacket[]>('SELECT estado FROM cola_envios WHERE id = ?', [c.insertId]);
+      expect(fila!.estado).toBe('enviando'); // no 'enviado': el cambio se revirtió junto con el de la remesa
+    } finally {
+      await db().query(`DROP TRIGGER IF EXISTS ${trigger}`);
+    }
+
+    // La recuperación de #5 la reenvía (el RNDC respondería DUPLICADO) y ahora sí queda todo consistente.
+    await db().query("UPDATE cola_envios SET updated_at = NOW() - INTERVAL 30 MINUTE WHERE id = ?", [c.insertId]);
+    await cola.drenar();
+    const [[fila]] = await db().query<import('mysql2').RowDataPacket[]>('SELECT estado FROM cola_envios WHERE id = ?', [c.insertId]);
+    const [[rem]] = await db().query<import('mysql2').RowDataPacket[]>('SELECT estado_rndc FROM remesa WHERE id = ?', [r.insertId]);
+    expect(fila!.estado).toBe('enviado');
+    expect(rem!.estado_rndc).toBe('aceptado');
+
+    await db().query('DELETE FROM remesa WHERE id = ?', [r.insertId]);
+    await db().query('DELETE FROM solicitud_servicio WHERE id = ?', [s.insertId]);
+  });
 });
