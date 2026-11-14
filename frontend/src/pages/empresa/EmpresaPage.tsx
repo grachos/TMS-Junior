@@ -10,6 +10,7 @@ import { api, ApiError } from '../../lib/api';
 import { Alert } from '../../components/Alert';
 import { MunicipioAutocomplete } from '../../components/MunicipioAutocomplete';
 import { useAuthStore } from '../../store/auth';
+import { useEnvioUnico } from '../../lib/useEnvioUnico';
 
 interface Empresa {
   tipo_id: string;
@@ -36,6 +37,8 @@ export default function EmpresaPage() {
   const [form, setForm] = useState<Empresa | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Synchronous guard: ignores a second submit fired before React re-renders.
+  const envio = useEnvioUnico();
   const [flash, setFlash] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -58,6 +61,7 @@ export default function EmpresaPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form) return;
+    if (!envio.tomar()) return;
     setSaving(true);
     setFlash(null);
     try {
@@ -67,6 +71,7 @@ export default function EmpresaPage() {
       setFlash({ kind: 'err', message: err instanceof ApiError ? err.message : 'No se pudo guardar.' });
     } finally {
       setSaving(false);
+      envio.soltar();
     }
   }
 

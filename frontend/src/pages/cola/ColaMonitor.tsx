@@ -11,6 +11,7 @@ import { api, ApiError } from '../../lib/api';
 import { useAuthStore } from '../../store/auth';
 import { Alert } from '../../components/Alert';
 import { StatusBadge } from '../../components/StatusBadge';
+import { useEnvioUnico } from '../../lib/useEnvioUnico';
 
 type Row = Record<string, any>;
 
@@ -75,6 +76,8 @@ export default function ColaMonitor() {
   const [data, setData] = useState<ColaResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [procesando, setProcesando] = useState(false);
+  // Synchronous guards per action/row: ignore a repeat click fired before React re-renders.
+  const envio = useEnvioUnico();
   const [flash, setFlash] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null);
   const [xml, setXml] = useState<{ id: number; text: string } | null>(null);
   const [anularRow, setAnularRow] = useState<{ id: number; documento: string } | null>(null);
@@ -102,6 +105,7 @@ export default function ColaMonitor() {
   }, [load]);
 
   async function procesarAhora() {
+    if (!envio.tomar('procesar-todo')) return;
     setProcesando(true);
     setFlash(null);
     try {
@@ -112,10 +116,12 @@ export default function ColaMonitor() {
       setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo procesar la cola.' });
     } finally {
       setProcesando(false);
+      envio.soltar('procesar-todo');
     }
   }
 
   async function procesarItem(id: number) {
+    if (!envio.tomar(`item-${id}`)) return;
     setFlash(null);
     try {
       const r = await api<{ ok: boolean; mensaje: string }>(`/cola/${id}/procesar`, { method: 'POST' });
@@ -123,6 +129,8 @@ export default function ColaMonitor() {
       await load();
     } catch (e) {
       setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo procesar el item.' });
+    } finally {
+      envio.soltar(`item-${id}`);
     }
   }
 
@@ -134,6 +142,7 @@ export default function ColaMonitor() {
         : '¿Cancelar este envío? No se le reporta nada al RNDC — nunca se envió.',
     );
     if (!confirmado) return;
+    if (!envio.tomar(`item-${id}`)) return;
     setFlash(null);
     try {
       const r = await api<{ ok: boolean; mensaje: string }>(`/cola/${id}/cancelar`, { method: 'POST' });
@@ -141,6 +150,8 @@ export default function ColaMonitor() {
       await load();
     } catch (e) {
       setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo cancelar el item.' });
+    } finally {
+      envio.soltar(`item-${id}`);
     }
   }
 
@@ -171,6 +182,7 @@ export default function ColaMonitor() {
 
   async function confirmarAnular() {
     if (!anularRow) return;
+    if (!envio.tomar('anular')) return;
     setAnulando(true);
     try {
       await api(`/cola/${anularRow.id}/anular`, { method: 'POST', body: { motivo, observaciones } });
@@ -181,6 +193,7 @@ export default function ColaMonitor() {
       setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo encolar la anulación.' });
     } finally {
       setAnulando(false);
+      envio.soltar('anular');
     }
   }
 

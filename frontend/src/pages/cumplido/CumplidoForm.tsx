@@ -9,6 +9,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Save, ArrowLeft, Loader2, CheckCircle2, Info } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { Alert } from '../../components/Alert';
+import { useEnvioUnico } from '../../lib/useEnvioUnico';
 
 type RemesaCumplido = Record<string, string>;
 
@@ -48,6 +49,8 @@ export default function CumplidoForm() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Synchronous guard: ignores a second submit fired before React re-renders.
+  const envio = useEnvioUnico();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -81,6 +84,7 @@ export default function CumplidoForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!envio.tomar()) return;
     setSaving(true);
     try {
       await api(`/cumplido/${manifiestoId}`, { method: 'POST', body: { ...man, remesas: urbano ? [] : remesas } });
@@ -89,6 +93,7 @@ export default function CumplidoForm() {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar el cumplido.');
     } finally {
       setSaving(false);
+      envio.soltar();
     }
   }
 
