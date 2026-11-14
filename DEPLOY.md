@@ -86,6 +86,7 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    schema.sql
    maestros.sql
    catalogos.sql
+   catalogo_configuracion.sql   ← configuraciones de vehículo (sin ella falla la página Vehículos)
    municipios.sql
    migracion_v2.sql   migracion_v3.sql   migracion_v4.sql   migracion_v5.sql
    migracion_v6.sql   migracion_v7.sql   migracion_v8.sql   migracion_v9.sql
