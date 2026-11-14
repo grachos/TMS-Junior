@@ -69,6 +69,9 @@ async function prepararFila(datos: Row): Promise<Record<string, SqlValue>> {
     const valor = datos[c];
     fila[c] = valor === '' || valor === undefined || valor === null ? null : (valor as SqlValue);
   }
+  // `interna` is NOT NULL: never let '' become NULL (500). A client that doesn't
+  // send it keeps the current value (see actualizar()).
+  if (datos.interna !== undefined) fila.interna = bit(datos.interna);
   if (!fila.fecha_solicitud) fila.fecha_solicitud = hoy();
   if (fila.contenedor_serial) fila.contenedor_serial = String(fila.contenedor_serial).trim().toUpperCase();
 
@@ -106,7 +109,7 @@ export async function crear(datos: Row, actor: Actor = ACTOR_SISTEMA): Promise<n
     }
     await auditar(conn, actor, 'solicitud.crear', 'solicitud', id, `Creó la solicitud #${id}`, {
       placa: fila.placa_vehiculo ?? null, origen: fila.municipio_origen ?? null, destino: fila.municipio_destino ?? null,
-      vehiculos: fila.cantidad_vehiculos ?? null, valor_flete: fila.valor_flete ?? null,
+      vehiculos: fila.cantidad_vehiculos ?? null, valor_flete: fila.valor_flete ?? null, interna: fila.interna ?? 0,
     });
     return id;
   });
@@ -117,6 +120,16 @@ export async function actualizar(id: number, datos: Row, actor: Actor = ACTOR_SI
   const fila = await prepararFila(datos);
   await withTransaction(async (conn) => {
     const [antesRows] = await conn.query<RowDataPacket[]>('SELECT * FROM solicitud_servicio WHERE id = ? FOR UPDATE', [id]);
+    // "Interna" (nothing goes to the RNDC) can't change once the solicitud has
+    // any dispatch — annulled ones included, since their documents already
+    // exist in one series or the other. confirmarDespacho takes the same row
+    // lock first, so a change and a dispatch can't race.
+    if (fila.interna !== undefined && Number(antesRows[0]?.interna ?? 0) !== fila.interna) {
+      const [desp] = await conn.query<RowDataPacket[]>('SELECT 1 FROM manifiesto WHERE solicitud_id = ? LIMIT 1', [id]);
+      if (desp.length > 0) {
+        throw conflict('La solicitud ya tiene despachos: no se puede cambiar si es interna (no se envía al RNDC) o no.');
+      }
+    }
     const sets = Object.keys(fila).map((c) => `${c} = :${c}`).join(', ');
     await conn.query(`UPDATE solicitud_servicio SET ${sets} WHERE id = :id`, { ...fila, id });
     const diff = cambios((antesRows[0] ?? {}) as Record<string, unknown>, fila as Record<string, unknown>);
@@ -131,6 +144,9 @@ async function tenedorCampo(conn: Queryable, placa: string, col: 'tenedor_tipo_i
   const v = (rows[0] as Row | undefined)?.[col];
   return v ?? null;
 }
+
+/** Form value -> 0/1 for the NOT NULL `interna` flag ('' or garbage means unchecked). */
+const bit = (v: unknown): 0 | 1 => (v === true || v === 1 || v === '1' || v === 'true' ? 1 : 0);
 
 /** Seeds the manifiesto (one per dispatch). Port of sembrarManifiesto(). */
 async function sembrarManifiesto(conn: Queryable, solicitudId: number, s: Row): Promise<number> {
@@ -161,6 +177,7 @@ async function sembrarManifiesto(conn: Queryable, solicitudId: number, s: Row): 
     responsable_pago_cargue: s.responsable_pago_cargue ?? null,
     responsable_pago_descargue: s.responsable_pago_descargue ?? null,
   };
+  if (Number(s.interna ?? 0) === 1) manifiesto.estado_rndc = 'interno';
   return insertNamed(conn, 'manifiesto', manifiesto);
 }
 
@@ -224,6 +241,7 @@ async function sembrarRemesa(conn: Queryable, solicitudId: number, rd: Row, s: R
     codigo_un: codigoUn,
     estado_producto: estadoProducto,
   };
+  if (Number(s.interna ?? 0) === 1) remesa.estado_rndc = 'interno';
   return insertNamed(conn, 'remesa', remesa);
 }
 
@@ -250,7 +268,7 @@ export async function confirmarDespacho(id: number, datos: Row, actor: Actor = A
     // Lock order for every dispatch: solicitud_servicio → maestro_empresa
     // (consecutivos, empresa.repo.ts) — keep it the same everywhere.
     const [restRows] = await conn.query<RowDataPacket[]>(
-      'SELECT estado, cantidad_vehiculos, peso FROM solicitud_servicio WHERE id = ? FOR UPDATE',
+      'SELECT estado, cantidad_vehiculos, peso, interna FROM solicitud_servicio WHERE id = ? FOR UPDATE',
       [id],
     );
     const actual = restRows[0] as Row | undefined;
@@ -261,6 +279,9 @@ export async function confirmarDespacho(id: number, datos: Row, actor: Actor = A
     // No `|| 1` fallback: 0 vehicles left means nothing left to dispatch.
     const restantes = Number(actual.cantidad_vehiculos ?? 0);
     if (!(restantes >= 1)) throw conflict('Ya no quedan vehículos por despachar en esta solicitud.');
+    // Solicitud interna: own numbering, documents in state 'interno', and NOTHING
+    // is queued for the RNDC.
+    const interna = Number(actual.interna ?? 0) === 1;
 
     // Weight budget, also under the lock (remesas committed by a concurrent
     // dispatch are visible here because the read happens after the lock).
@@ -297,7 +318,7 @@ export async function confirmarDespacho(id: number, datos: Row, actor: Actor = A
     s.cantidad_vehiculos = nuevosRestantes;
 
     // Company consecutivos (reserved on the same connection).
-    s.num_manifiesto = await empresaRepo.siguienteManifiesto(conn);
+    s.num_manifiesto = interna ? await empresaRepo.siguienteManifiestoInterno(conn) : await empresaRepo.siguienteManifiesto(conn);
 
     // 3) Seed the manifiesto (one per dispatch).
     const manifiestoId = await sembrarManifiesto(conn, id, s);
@@ -321,7 +342,7 @@ export async function confirmarDespacho(id: number, datos: Row, actor: Actor = A
     const remesaIds: number[] = [];
     const numRemesas: string[] = [];
     for (const rd of remesasData) {
-      rd.num_remesa = await empresaRepo.siguienteRemesa(conn);
+      rd.num_remesa = interna ? await empresaRepo.siguienteRemesaInterno(conn) : await empresaRepo.siguienteRemesa(conn);
       numRemesas.push(String(rd.num_remesa));
       remesaIds.push(await sembrarRemesa(conn, id, rd, s));
     }
@@ -332,12 +353,13 @@ export async function confirmarDespacho(id: number, datos: Row, actor: Actor = A
     }
 
     // 6) Enqueue tercero(11) → vehículo(12) → remesas(3) → manifiesto(4).
-    await cola.encolar(conn, id, manifiestoId, remesaIds);
+    if (!interna) await cola.encolar(conn, id, manifiestoId, remesaIds);
 
     await auditar(
       conn, actor, 'despacho.confirmar', 'solicitud', id,
-      `Despachó la solicitud #${id}: manifiesto ${s.num_manifiesto}, remesa(s) ${numRemesas.join(', ')}, placa ${s.placa_vehiculo ?? '-'}`,
+      `Despachó la solicitud #${id}${interna ? ' (interna, no se envía al RNDC)' : ''}: manifiesto ${s.num_manifiesto}, remesa(s) ${numRemesas.join(', ')}, placa ${s.placa_vehiculo ?? '-'}`,
       {
+        interna,
         manifiesto_id: manifiestoId, num_manifiesto: s.num_manifiesto, remesas: numRemesas,
         placa: s.placa_vehiculo ?? null, conductor: s.conductor_num_id ?? null, valor_anticipo: s.valor_anticipo ?? null,
       },
@@ -354,7 +376,7 @@ const LIST_FROM = `FROM solicitud_servicio s
   LEFT JOIN municipio om ON om.codigo_rndc = s.municipio_origen
   LEFT JOIN municipio dm ON dm.codigo_rndc = s.municipio_destino`;
 
-const LIST_COLS = `s.id, s.consecutivo, s.fecha_solicitud,
+const LIST_COLS = `s.id, s.consecutivo, s.fecha_solicitud, s.interna,
   s.municipio_origen, s.municipio_destino,
   s.valor_flete, s.placa_vehiculo, s.estado,
   s.cantidad_vehiculos, s.cantidad_vehiculos_original,
@@ -439,6 +461,9 @@ export async function obtener(
   const pesoAsignado = await pesoAsignadoSolicitud(db(), id, manifiestoId);
   solicitud.peso_asignado = pesoAsignado;
   solicitud.peso_disponible = Number(solicitud.peso ?? 0) - pesoAsignado;
+  // The form locks "Interna" once there's any dispatch (annulled ones count).
+  const [[nDesp]] = await db().query<RowDataPacket[]>('SELECT COUNT(*) AS n FROM manifiesto WHERE solicitud_id = ?', [id]);
+  solicitud.tiene_despachos = Number(nDesp?.n ?? 0) > 0;
 
   return { solicitud, manifiesto, remesas };
 }

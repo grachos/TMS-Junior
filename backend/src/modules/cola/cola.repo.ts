@@ -126,6 +126,14 @@ const TIPOS_DOCUMENTO_VALIDOS = new Set([
   'anular_cumplido_inicial_remesa', 'anular_manifiesto', 'anular_remesa',
 ]);
 
+/** Throws if the solicitud is internal (nothing of it may be queued or sent to the RNDC). */
+async function asegurarNoInterna(exec: Queryable, solicitudId: number): Promise<void> {
+  const sol = await fila(exec, 'SELECT interna FROM solicitud_servicio WHERE id = ?', [solicitudId]);
+  if (Number(sol?.interna ?? 0) === 1) {
+    throw new Error('La solicitud es interna: ningún documento se envía al RNDC.');
+  }
+}
+
 /** Inserts a queue row (uses manifiesto_id instead of remesa_id). Port of insertarCola(). */
 async function insertarCola(
   exec: Queryable,
@@ -141,6 +149,11 @@ async function insertarCola(
       `tipo_documento "${tipo}" no está en el ENUM de cola_envios.tipo_documento — falta una migración. Ver TIPOS_DOCUMENTO_VALIDOS en cola.repo.ts.`,
     );
   }
+  // Last barrier for "solicitud interna": EVERY path that queues a document
+  // (dispatch, cumplido, annulment, re-enqueue after an edit) goes through here,
+  // so nothing of an internal solicitud can reach the RNDC queue even if a
+  // caller forgot to check. Loud on purpose: the operation rolls back.
+  await asegurarNoInterna(exec, solicitudId);
   await exec.query(
     `INSERT INTO cola_envios
         (solicitud_id, manifiesto_id, tipo_documento, referencia_id, proceso_rndc, orden, payload_xml, estado, max_intentos)
@@ -161,6 +174,7 @@ export async function encolar(
 ): Promise<void> {
   const s = await fila(conn, 'SELECT * FROM solicitud_servicio WHERE id = ?', [solicitudId]);
   if (s === null) throw new Error('Solicitud no encontrada para encolar.');
+  await asegurarNoInterna(conn, solicitudId);
   if (manifiestoId === null || remesaIds.length === 0) {
     throw new Error('Se requieren manifiestoId y remesaIds para encolar.');
   }
@@ -262,6 +276,7 @@ export async function encolarCumplido(
   manifiestoId: number,
   remesaIds: number[],
 ): Promise<void> {
+  await asegurarNoInterna(conn, solicitudId);
   const urbano = await solicitudEsUrbana(conn, solicitudId);
   if (urbano) await purgarCumplidoRemesaUrbano(conn);
   for (const rid of urbano ? [] : remesaIds) {
@@ -373,6 +388,13 @@ export interface PreviewAnulacion {
 export async function previsualizarAnulacion(manifiestoId: number): Promise<PreviewAnulacion> {
   const datos = await manifiestoYRemesas(db(), manifiestoId);
   if (datos === null) return { puedeAnular: false, motivoBloqueo: 'Manifiesto no encontrado.', pasos: [] };
+  if (datos.manif.estado_rndc === 'interno') {
+    return {
+      puedeAnular: true,
+      motivoBloqueo: null,
+      pasos: [{ tipo: 'anular_interno', label: 'Anular despacho interno (no se envía al RNDC)', consecutivo: String(datos.manif.num_manifiesto ?? '') }],
+    };
+  }
   if (datos.manif.estado_rndc !== 'aceptado') {
     return {
       puedeAnular: false,
@@ -397,6 +419,51 @@ export async function previsualizarAnulacion(manifiestoId: number): Promise<Prev
  * remesas siguen cumplidas, primero se anulan los cumplidos (pasos 29/28), lo
  * cual las deja re-cumplibles; luego se anulan manifiesto y remesas.
  */
+/**
+ * Annuls a dispatch of an internal solicitud. Nothing was ever sent to the RNDC,
+ * so there's nothing to report: the manifiesto and its remesas go straight to
+ * 'anulado' and the vehicle slot is given back. Runs inside the caller's
+ * transaction with the manifiesto already locked, so two simultaneous annulments
+ * leave exactly one.
+ */
+async function anularInterno(
+  conn: Queryable,
+  manif: Row,
+  reason: MotivoAnulacion,
+  observaciones: string,
+  anuladoPor: number | null,
+  actor: Actor,
+): Promise<void> {
+  const obs = observaciones ?? '';
+  const mBase = motivoBase(reason);
+  await conn.query(
+    `UPDATE manifiesto SET estado_rndc = 'anulado', anulacion_motivo = ?, anulacion_observaciones = ?, anulado_por = ?, anulado_at = NOW() WHERE id = ?`,
+    [mBase, obs, anuladoPor, Number(manif.id)],
+  );
+  await conn.query(
+    `UPDATE remesa r JOIN manifiesto_remesa mr ON mr.remesa_id = r.id
+        SET r.estado_rndc = 'anulado', r.anulacion_motivo = ?, r.anulacion_observaciones = ?, r.anulado_por = ?, r.anulado_at = NOW()
+      WHERE mr.manifiesto_id = ? AND r.estado_rndc = 'interno'`,
+    [mBase, obs, anuladoPor, Number(manif.id)],
+  );
+  // Give the vehicle slot back (same rule as marcarOrigen's anular_manifiesto
+  // branch: +1 capped at the original count, back to 'borrador' when it's all
+  // free again), as ONE atomic statement so a dispatch committed in the
+  // meantime isn't overwritten. `estado` first: it reads the OLD count.
+  await conn.query(
+    `UPDATE solicitud_servicio
+        SET estado = IF(LEAST(cantidad_vehiculos + 1, cantidad_vehiculos_original) >= cantidad_vehiculos_original, 'borrador', 'procesada'),
+            cantidad_vehiculos = LEAST(cantidad_vehiculos + 1, cantidad_vehiculos_original)
+      WHERE id = ?`,
+    [Number(manif.solicitud_id)],
+  );
+  await auditar(
+    conn, actor, 'anulacion.despacho', 'manifiesto', Number(manif.id),
+    `Anuló el despacho INTERNO del manifiesto ${manif.num_manifiesto} (${reason === 'digitacion' ? 'error de digitación' : 'cancelación'}); no se envió nada al RNDC`,
+    { interna: true, motivo: reason, observaciones: obs },
+  );
+}
+
 export async function encolarAnulacion(
   conn: Queryable,
   manifiestoId: number,
@@ -409,6 +476,10 @@ export async function encolarAnulacion(
   const datos = await manifiestoYRemesas(conn, manifiestoId);
   if (datos === null) throw new Error('Manifiesto no encontrado.');
   const { manif, remesas } = datos;
+  if (manif.estado_rndc === 'interno') {
+    await anularInterno(conn, manif, reason, observaciones, anuladoPor, actor);
+    return;
+  }
   if (manif.estado_rndc !== 'aceptado') {
     throw new Error('Solo se puede anular un manifiesto radicado (aceptado) en el RNDC.');
   }
@@ -692,6 +763,12 @@ async function reclamarFila(id: number, estados: string[], respetarProgramacion 
 
 /** Sends a row by type (masters via their repos; documents via XML). Port of enviarFila(). */
 async function enviarFila(rndc: RndcClient, row: Row): Promise<RndcRespuesta> {
+  // Second barrier: if a row of an internal solicitud ever reached the queue, it
+  // is NOT sent (it stays failing and visible in Cola instead).
+  const sol = await fila(db(), 'SELECT interna FROM solicitud_servicio WHERE id = ?', [Number(row.solicitud_id)]);
+  if (Number(sol?.interna ?? 0) === 1) {
+    return RndcRespuesta.fallo('Solicitud interna: ningún documento se envía al RNDC.', 0, '');
+  }
   switch (row.tipo_documento) {
     case 'tercero':
       return terceroRepo.registrarEnRndc(Number(row.referencia_id));
@@ -1462,6 +1539,9 @@ export async function procesarItem(colaId: number): Promise<ItemResult> {
 /** Processes the queue items of a single dispatch. Port of procesarDespacho(). */
 export async function procesarDespacho(manifiestoId: number): Promise<ItemResult> {
   const manif = await fila(db(), 'SELECT estado_rndc FROM manifiesto WHERE id = ?', [manifiestoId]);
+  if (manif?.estado_rndc === 'interno') {
+    return { ok: false, mensaje: 'Este despacho es interno: no se envía al RNDC.' };
+  }
   if (manif?.estado_rndc === 'anulacion_pendiente' || manif?.estado_rndc === 'anulado') {
     // Progresar la anulación se hace desde Cola (por fila o "Procesar ahora"),
     // no desde este botón de despacho — evita reenviar por la vía equivocada.
@@ -2087,7 +2167,9 @@ export async function contarDespachosPendientes(): Promise<number> {
     // no deben inflar el contador. Ver también listarDespachosConPaginacion(),
     // que ya excluye 'anulado' de la lista misma.
     const [rows] = await db().query<(RowDataPacket & { n: number })[]>(
-      "SELECT COUNT(*) AS n FROM remesa WHERE estado_rndc NOT IN ('aceptado', 'anulado', 'anulacion_pendiente')",
+      // 'interno': documents of an internal solicitud never go to the RNDC, so they
+      // are never "pending" there.
+      "SELECT COUNT(*) AS n FROM remesa WHERE estado_rndc NOT IN ('aceptado', 'anulado', 'anulacion_pendiente', 'interno')",
     );
     return Number(rows[0]?.n ?? 0);
   });

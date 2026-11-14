@@ -62,6 +62,7 @@ export default function DespachoForm() {
   const editar = Boolean(manifiestoId);
   const navigate = useNavigate();
   const [sol, setSol] = useState<Record<string, any> | null>(null);
+  const interna = Number(sol?.interna ?? 0) === 1; // internal solicitud: nothing goes to the RNDC
   const [manifiestoBloqueado, setManifiestoBloqueado] = useState(false);
   const [empaques, setEmpaques] = useState<{ codigo: string; descripcion: string }[]>([]);
   const [placa, setPlaca] = useState('');
@@ -195,7 +196,11 @@ export default function DespachoForm() {
         navigate('/despachos?ok=' + encodeURIComponent(r.mensaje));
       } else {
         await api(`/solicitudes/${id}/despachar`, { method: 'POST', body });
-        navigate('/cola?ok=' + encodeURIComponent('Despacho confirmado. Documentos encolados para el RNDC.'));
+        navigate(
+          interna
+            ? '/despachos?ok=' + encodeURIComponent('Despacho interno confirmado. No se envía nada al RNDC.')
+            : '/cola?ok=' + encodeURIComponent('Despacho confirmado. Documentos encolados para el RNDC.'),
+        );
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar el despacho.');
@@ -231,9 +236,17 @@ export default function DespachoForm() {
       <h1 className="mb-1 flex items-center gap-2 text-xl font-semibold text-slate-800">
         <Truck size={20} className="text-celeste-600" /> {editar ? `Editar despacho · Manifiesto #${manifiestoId}` : `Confirmar despacho · Solicitud #${id}`}
       </h1>
+      {interna && (
+        <div className="mb-3 mt-2 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-800 ring-1 ring-violet-200">
+          <strong>Solicitud interna:</strong> este despacho no se envía al RNDC (ni terceros, vehículo, remesa, manifiesto ni cumplido). Sus
+          documentos llevan numeración propia (INT-) y se imprimen como «DOCUMENTO INTERNO».
+        </div>
+      )}
       {editar ? (
         <p className="mb-1 text-sm text-slate-500">
-          Corrige los datos de este despacho. Al guardar se regenera el XML pendiente de envío para reflejar los cambios.
+          {interna
+            ? 'Corrige los datos de este despacho interno.'
+            : 'Corrige los datos de este despacho. Al guardar se regenera el XML pendiente de envío para reflejar los cambios.'}
         </p>
       ) : (
         <>
@@ -460,7 +473,7 @@ export default function DespachoForm() {
         <div className="flex items-center gap-3">
           <button type="submit" className="btn-primary" disabled={saving || manifiestoBloqueado}>
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            {editar ? 'Guardar cambios' : 'Confirmar despacho y encolar'}
+            {editar ? 'Guardar cambios' : interna ? 'Confirmar despacho interno' : 'Confirmar despacho y encolar'}
           </button>
           <button type="button" className="btn-ghost" onClick={volver}>
             Cancelar

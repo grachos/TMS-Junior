@@ -51,6 +51,7 @@ const DEFAULTS = {
   valor_mercancia: '',
   valor_flete: '',
   porcentaje_ica: '',
+  interna: '0',
   retencion_ica: '',
   retencion_fuente: '',
   fopat: '',
@@ -96,6 +97,8 @@ export default function SolicitudForm() {
   const [peligrosaAviso, setPeligrosaAviso] = useState<string | null>(null);
 
   const set = (k: keyof Form, v: string) => setF((p) => ({ ...p, [k]: v }));
+  // "Interna" can't change once the solicitud has had a dispatch (server-enforced too).
+  const [internaBloqueada, setInternaBloqueada] = useState(false);
 
   useEffect(() => {
     void api<{ codigo: string; descripcion: string }[]>('/catalogos/empaques').then(setEmpaques).catch(() => setEmpaques([]));
@@ -106,6 +109,7 @@ export default function SolicitudForm() {
     void (async () => {
       try {
         const { solicitud: s } = await api<{ solicitud: Record<string, any> }>(`/solicitudes/${id}`);
+        setInternaBloqueada(Boolean(s.tiene_despachos));
         setF((prev) => {
           const next: Form = { ...prev };
           for (const k of Object.keys(DEFAULTS) as (keyof Form)[]) {
@@ -315,6 +319,24 @@ export default function SolicitudForm() {
             <div className="sm:col-span-2">
               <label className="field-label">Observaciones</label>
               <textarea className="field-input" rows={2} maxLength={200} value={f.observaciones} onChange={(e) => set('observaciones', e.target.value)} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={f.interna === '1'}
+                  disabled={internaBloqueada}
+                  onChange={(e) => set('interna', e.target.checked ? '1' : '0')}
+                />
+                <span>
+                  <strong>Solicitud interna</strong>: ningún documento (terceros, vehículo, remesa, manifiesto, cumplido) se envía al RNDC. Tendrán
+                  numeración propia (INT-) y se imprimen como «DOCUMENTO INTERNO».
+                </span>
+              </label>
+              {internaBloqueada && (
+                <p className="mt-1 text-xs text-slate-500">No se puede cambiar: esta solicitud ya tuvo despachos.</p>
+              )}
             </div>
           </div>
         </fieldset>
