@@ -16,7 +16,9 @@ interface Empresa {
   tipo_id: string;
   nit: string;
   rndc_username: string | null;
-  rndc_password: string | null;
+  /** Never sent by the server; only typed here to change it. */
+  rndc_password?: string | null;
+  rndc_password_configurada?: boolean;
   razon_social: string | null;
   direccion: string | null;
   telefono: string | null;
@@ -42,10 +44,20 @@ export default function EmpresaPage() {
   const [flash, setFlash] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Counter values as loaded: the server only changes a counter if the user
+  // edited it AND it hasn't moved since (a dispatch may happen meanwhile).
+  const [originales, setOriginales] = useState({ remesa: '', manifiesto: '' });
+
+  async function cargar() {
+    const e = await api<Empresa>('/empresa');
+    setForm({ ...e, rndc_password: '' });
+    setOriginales({ remesa: e.consecutivo_remesa, manifiesto: e.consecutivo_manifiesto });
+  }
+
   useEffect(() => {
     void (async () => {
       try {
-        setForm(await api<Empresa>('/empresa'));
+        await cargar();
       } catch (e) {
         setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo cargar.' });
       } finally {
@@ -65,7 +77,15 @@ export default function EmpresaPage() {
     setSaving(true);
     setFlash(null);
     try {
-      await api('/empresa', { method: 'PUT', body: form });
+      await api('/empresa', {
+        method: 'PUT',
+        body: {
+          ...form,
+          consecutivo_remesa_original: originales.remesa,
+          consecutivo_manifiesto_original: originales.manifiesto,
+        },
+      });
+      await cargar(); // fresh counters + "password configured" state
       setFlash({ kind: 'ok', message: 'Datos de la empresa guardados.' });
     } catch (err) {
       setFlash({ kind: 'err', message: err instanceof ApiError ? err.message : 'No se pudo guardar.' });
@@ -179,6 +199,7 @@ export default function EmpresaPage() {
                   maxLength={120}
                   autoComplete="off"
                   value={form.rndc_password ?? ''}
+                  placeholder={form.rndc_password_configurada ? '•••••••• configurada — escribe solo para cambiarla' : 'Sin configurar'}
                   onChange={(e) => upd('rndc_password', e.target.value)}
                 />
                 <button

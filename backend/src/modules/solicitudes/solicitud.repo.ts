@@ -14,6 +14,7 @@ import * as empresaRepo from '../empresa/empresa.repo.js';
 import * as cola from '../cola/cola.repo.js';
 import { pesoAsignadoSolicitud, pesoTotalDe } from '../../util/pesoSolicitud.js';
 import { badRequest, conflict, notFound } from '../../http/errors.js';
+import { ACTOR_SISTEMA, auditar, cambios, type Actor } from '../auditoria/auditoria.repo.js';
 
 type Queryable = Pool | PoolConnection;
 type Row = Record<string, any>;
@@ -94,7 +95,7 @@ async function prepararFila(datos: Row): Promise<Record<string, SqlValue>> {
 }
 
 /** Inserts the solicitud (auto-consecutivo = id if none). Port of crear(). */
-export async function crear(datos: Row): Promise<number> {
+export async function crear(datos: Row, actor: Actor = ACTOR_SISTEMA): Promise<number> {
   const fila = await prepararFila(datos);
   fila.cantidad_vehiculos_original = Number(fila.cantidad_vehiculos ?? 1) || 1;
 
@@ -103,16 +104,24 @@ export async function crear(datos: Row): Promise<number> {
     if (!fila.consecutivo) {
       await conn.query('UPDATE solicitud_servicio SET consecutivo = ? WHERE id = ?', [String(id), id]);
     }
+    await auditar(conn, actor, 'solicitud.crear', 'solicitud', id, `Creó la solicitud #${id}`, {
+      placa: fila.placa_vehiculo ?? null, origen: fila.municipio_origen ?? null, destino: fila.municipio_destino ?? null,
+      vehiculos: fila.cantidad_vehiculos ?? null, valor_flete: fila.valor_flete ?? null,
+    });
     return id;
   });
 }
 
 /** Updates the solicitud. Port of actualizar(). */
-export async function actualizar(id: number, datos: Row): Promise<void> {
+export async function actualizar(id: number, datos: Row, actor: Actor = ACTOR_SISTEMA): Promise<void> {
   const fila = await prepararFila(datos);
   await withTransaction(async (conn) => {
+    const [antesRows] = await conn.query<RowDataPacket[]>('SELECT * FROM solicitud_servicio WHERE id = ? FOR UPDATE', [id]);
     const sets = Object.keys(fila).map((c) => `${c} = :${c}`).join(', ');
     await conn.query(`UPDATE solicitud_servicio SET ${sets} WHERE id = :id`, { ...fila, id });
+    const diff = cambios((antesRows[0] ?? {}) as Record<string, unknown>, fila as Record<string, unknown>);
+    const resumen = Object.keys(diff).length ? Object.keys(diff).join(', ') : 'sin cambios';
+    await auditar(conn, actor, 'solicitud.actualizar', 'solicitud', id, `Editó la solicitud #${id}: ${resumen}`.slice(0, 500), { cambios: diff });
   });
 }
 
@@ -223,7 +232,7 @@ async function sembrarRemesa(conn: Queryable, solicitudId: number, rd: Row, s: R
  * seeds 1 manifiesto + N remesas, links them, and enqueues for the RNDC.
  * Port of confirmarDespacho().
  */
-export async function confirmarDespacho(id: number, datos: Row): Promise<void> {
+export async function confirmarDespacho(id: number, datos: Row, actor: Actor = ACTOR_SISTEMA): Promise<void> {
   await withTransaction(async (conn) => {
     // 1) Save dispatch fields on the solicitud.
     const fila: Record<string, SqlValue> = {};
@@ -310,8 +319,10 @@ export async function confirmarDespacho(id: number, datos: Row): Promise<void> {
     }
 
     const remesaIds: number[] = [];
+    const numRemesas: string[] = [];
     for (const rd of remesasData) {
       rd.num_remesa = await empresaRepo.siguienteRemesa(conn);
+      numRemesas.push(String(rd.num_remesa));
       remesaIds.push(await sembrarRemesa(conn, id, rd, s));
     }
 
@@ -322,6 +333,15 @@ export async function confirmarDespacho(id: number, datos: Row): Promise<void> {
 
     // 6) Enqueue tercero(11) → vehículo(12) → remesas(3) → manifiesto(4).
     await cola.encolar(conn, id, manifiestoId, remesaIds);
+
+    await auditar(
+      conn, actor, 'despacho.confirmar', 'solicitud', id,
+      `Despachó la solicitud #${id}: manifiesto ${s.num_manifiesto}, remesa(s) ${numRemesas.join(', ')}, placa ${s.placa_vehiculo ?? '-'}`,
+      {
+        manifiesto_id: manifiestoId, num_manifiesto: s.num_manifiesto, remesas: numRemesas,
+        placa: s.placa_vehiculo ?? null, conductor: s.conductor_num_id ?? null, valor_anticipo: s.valor_anticipo ?? null,
+      },
+    );
   });
 }
 

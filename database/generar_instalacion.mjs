@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Genera UN solo archivo SQL para una instalación nueva (base vacía), con todo
- * en el orden de DEPLOY.md: schema, maestros, catálogos, municipios, todas las
+ * en el orden de DEPLOY.md: schema, maestros, catálogos (incluida la
+ * configuración de vehículos), municipios, todas las
  * migraciones y al final productos.sql. Así un sitio nuevo se importa en un
  * solo paso por phpMyAdmin en vez de ~55 archivos.
  *
@@ -27,7 +28,7 @@ const migraciones = readdirSync(dir)
   .filter((f) => /^migracion_v\d+.*\.sql$/.test(f))
   .sort((a, b) => numero(a) - numero(b));
 const OMITIR = new Set(['migracion_v21.sql']);
-const archivos = ['schema.sql', 'maestros.sql', 'catalogos.sql', 'municipios.sql',
+const archivos = ['schema.sql', 'maestros.sql', 'catalogos.sql', 'catalogo_configuracion.sql', 'municipios.sql',
   ...migraciones.filter((f) => !OMITIR.has(f)), 'productos.sql'];
 
 const partes = [

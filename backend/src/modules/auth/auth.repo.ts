@@ -6,6 +6,9 @@
  */
 
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+import type { Pool, PoolConnection } from 'mysql2/promise';
+
+type Queryable = Pool | PoolConnection;
 import { db } from '../../db/pool.js';
 import { invalidate } from '../../util/cache.js';
 
@@ -88,8 +91,8 @@ export async function createUser(input: {
   nombre: string;
   rol: Rol;
   paginas: Pagina[] | null;
-}): Promise<number> {
-  const [res] = await db().query<ResultSetHeader>(
+}, exec: Queryable = db()): Promise<number> {
+  const [res] = await exec.query<ResultSetHeader>(
     `INSERT INTO staff_users (email, password_hash, nombre, rol, paginas, activo)
      VALUES (:email, :passwordHash, :nombre, :rol, :paginas, 1)`,
     {
@@ -125,6 +128,7 @@ export async function emailExists(email: string, excludeId: number | null = null
 export async function updateUser(
   id: number,
   input: { email: string; nombre: string; rol: Rol; paginas: Pagina[] | null; activo: boolean; passwordHash?: string },
+  exec: Queryable = db(),
 ): Promise<void> {
   const fila: Record<string, SqlValue> = {
     email: input.email.trim().toLowerCase(),
@@ -135,7 +139,7 @@ export async function updateUser(
   };
   if (input.passwordHash) fila.password_hash = input.passwordHash;
   const sets = Object.keys(fila).map((c) => `${c} = :${c}`).join(', ');
-  await db().query(`UPDATE staff_users SET ${sets} WHERE id = :id`, { ...fila, id });
+  await exec.query(`UPDATE staff_users SET ${sets} WHERE id = :id`, { ...fila, id });
   // requireAuth re-reads the user (cached briefly); drop it so a deactivation
   // or a role/page change applies on this user's very next request.
   invalidate(claveCacheUsuario(id));

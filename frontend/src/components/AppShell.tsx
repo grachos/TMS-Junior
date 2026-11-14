@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
+  History,
   LayoutDashboard,
   FileText,
   Truck,
@@ -92,6 +93,7 @@ const NAV: { section?: string; items: NavItem[] }[] = [
       { to: '/productos', label: 'Productos', icon: Package, pagina: 'productos' },
       { to: '/empresa', label: 'Empresa', icon: Building2, pagina: 'empresa' },
       { to: '/usuarios', label: 'Usuarios', icon: UsersRound, adminOnly: true },
+      { to: '/actividad', label: 'Actividad', icon: History, adminOnly: true },
     ],
   },
 ];

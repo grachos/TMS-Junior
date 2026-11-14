@@ -135,9 +135,19 @@ export class RndcClient {
     return this.enviarXmlInterno(this.envolverVariables(procesoid, variablesXml), procesoid);
   }
 
-  /** Devuelve el XML interno completo (para previsualizar sin enviar). */
+  /**
+   * Devuelve el XML interno completo para previsualizar sin enviar, con la
+   * clave enmascarada: esta vista llega a "Ver XML" en Cola (cualquier usuario
+   * con acceso a Cola) y el modo seguro la guarda en cola_envios.respuesta_rndc.
+   * Nunca se usa para el envío real (ese pasa por ingresarXml()).
+   */
   previewXmlInterno(procesoid: number, variablesXml: string): string {
-    return this.envolverVariables(procesoid, variablesXml);
+    return RndcClient.enmascararClave(this.envolverVariables(procesoid, variablesXml));
+  }
+
+  /** Reemplaza el contenido de <password> por asteriscos. */
+  static enmascararClave(xml: string): string {
+    return xml.replace(/<password>[^<]*<\/password>/g, '<password>********</password>');
   }
 
   /** Envuelve un fragmento <variables> con <acceso>/<solicitud> (tipo 1). */

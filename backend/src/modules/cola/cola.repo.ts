@@ -27,6 +27,7 @@ import { consecutivoRemesaRndc } from '../../util/consecutivoRndc.js';
 import { esViajeUrbano } from '../../util/tipoViaje.js';
 import { pesoAsignadoSolicitud, pesoTotalDe } from '../../util/pesoSolicitud.js';
 import { cached } from '../../util/cache.js';
+import { ACTOR_SISTEMA, auditar, cambios, type Actor } from '../auditoria/auditoria.repo.js';
 
 type Queryable = Pool | PoolConnection;
 type Row = Record<string, any>;
@@ -402,6 +403,7 @@ export async function encolarAnulacion(
   reason: MotivoAnulacion,
   observaciones: string,
   anuladoPor: number | null,
+  actor: Actor = ACTOR_SISTEMA,
 ): Promise<void> {
   if (!(await bloquearManifiesto(conn, manifiestoId))) throw new Error('Manifiesto no encontrado.');
   const datos = await manifiestoYRemesas(conn, manifiestoId);
@@ -450,6 +452,12 @@ export async function encolarAnulacion(
            r.anulacion_observaciones = ?, r.anulado_por = ?
      WHERE mr.manifiesto_id = ? AND r.estado_rndc = 'aceptado'`,
     [mBase, obs, anuladoPor, manifiestoId],
+  );
+  const pasos = calcularPasosAnulacion(manif, remesas);
+  await auditar(
+    conn, actor, 'anulacion.despacho', 'manifiesto', manifiestoId,
+    `Solicitó anular el despacho del manifiesto ${manif.num_manifiesto} (${reason === 'digitacion' ? 'error de digitación' : 'cancelación'})`,
+    { motivo: reason, observaciones: obs, pasos: pasos.map((x) => `${x.tipo} ${x.consecutivo}`) },
   );
 }
 
@@ -585,6 +593,7 @@ export async function encolarAnulacionIndividual(
   reason: MotivoAnulacion,
   observaciones: string,
   anuladoPor: number | null,
+  actor: Actor = ACTOR_SISTEMA,
 ): Promise<void> {
   // manifiesto_id de una fila de cola nunca cambia, así que se lee FUERA de la
   // transacción (pool): una lectura normal aquí fijaría la "foto" de la
@@ -643,6 +652,11 @@ export async function encolarAnulacionIndividual(
 
   await reemplazarColaPendiente(conn, manifiestoId, preview.tipoAnulacion, referenciaId);
   await insertarCola(conn, solicitudId, manifiestoId, preview.tipoAnulacion, referenciaId, payload);
+  await auditar(
+    conn, actor, 'anulacion.documento', 'cola', colaId,
+    `Solicitó: ${preview.label} ${preview.consecutivo ?? ''} (${reason === 'digitacion' ? 'error de digitación' : 'cancelación'})`.trim(),
+    { tipo: preview.tipoAnulacion, consecutivo: preview.consecutivo, manifiesto_id: manifiestoId, motivo: reason, observaciones: obs },
+  );
 }
 
 /** Is there a lower-`orden` row of the same solicitud not yet 'enviado'? Port of dependenciaPendiente(). */
@@ -1350,7 +1364,7 @@ async function revertirAnulacionSiNoQuedaNadaActivo(conn: Queryable, manifiestoI
 /** Pasos de anulación que son "de la remesa", no del manifiesto en sí. */
 const TIPOS_ANULACION_DE_REMESA = ['anular_remesa', 'anular_cumplido_remesa', 'anular_cumplido_inicial_remesa'];
 
-export async function cancelarItem(colaId: number): Promise<ItemResult> {
+export async function cancelarItem(colaId: number, actor: Actor = ACTOR_SISTEMA): Promise<ItemResult> {
   const row = await fila(db(), 'SELECT * FROM cola_envios WHERE id = ?', [colaId]);
   if (!row) return { ok: false, mensaje: `Item #${colaId} no encontrado.` };
   if (!['pendiente', 'error'].includes(row.estado)) {
@@ -1394,6 +1408,8 @@ export async function cancelarItem(colaId: number): Promise<ItemResult> {
         [manifiestoId],
       );
       await conn.query("UPDATE manifiesto SET estado_rndc = 'pendiente' WHERE id = ?", [manifiestoId]);
+      await auditar(conn, actor, 'cola.cancelar', 'manifiesto', manifiestoId,
+        `Canceló el envío pendiente del despacho (manifiesto #${manifiestoId}); queda editable`, { cola_id: colaId, tipo: row.tipo_documento });
       return { ok: true, mensaje: 'Despacho cancelado — puedes editarlo y volver a enviarlo.' };
     }
 
@@ -1401,6 +1417,9 @@ export async function cancelarItem(colaId: number): Promise<ItemResult> {
     if (String(row.tipo_documento).startsWith('anular_')) {
       await revertirAnulacionSiNoQuedaNadaActivo(conn, Number(row.manifiesto_id));
     }
+    await auditar(conn, actor, 'cola.cancelar', 'cola', colaId, `Canceló el envío #${colaId} (${row.tipo_documento})`, {
+      tipo: row.tipo_documento, manifiesto_id: row.manifiesto_id, referencia_id: row.referencia_id,
+    });
     return { ok: true, mensaje: 'Envío cancelado.' };
   });
 }
@@ -1951,7 +1970,7 @@ const CAMPOS_REMESA_EDITABLES = [
  * edited at all; a remesa already 'aceptado' is silently left untouched (its
  * fields are locked) while the rest of the despacho can still be corrected.
  */
-export async function actualizarDespacho(manifiestoId: number, datos: Row): Promise<ItemResult> {
+export async function actualizarDespacho(manifiestoId: number, datos: Row, actor: Actor = ACTOR_SISTEMA): Promise<ItemResult> {
   return withTransaction(async (conn) => {
     const manifiesto = await fila(conn, 'SELECT * FROM manifiesto WHERE id = ?', [manifiestoId]);
     if (manifiesto === null) return { ok: false, mensaje: 'Despacho no encontrado.' };
@@ -2051,6 +2070,11 @@ export async function actualizarDespacho(manifiestoId: number, datos: Row): Prom
       omitidas > 0
         ? `Despacho actualizado (${omitidas} remesa(s) ya aceptada(s) por el RNDC no se modificaron).`
         : 'Despacho actualizado correctamente.';
+    await auditar(conn, actor, 'despacho.editar', 'manifiesto', manifiestoId,
+      `Editó el despacho del manifiesto ${manifiesto.num_manifiesto}`, {
+        cambios: cambios(manifiesto as Record<string, unknown>, filaManif as Record<string, unknown>),
+        remesas_editadas: remesasBody.map((r) => Number(r.id ?? 0)).filter(Boolean),
+      });
     return { ok: true, mensaje };
   });
 }

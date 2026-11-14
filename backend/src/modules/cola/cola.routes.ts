@@ -29,6 +29,7 @@ import { config } from '../../config/env.js';
 import { db, withTransaction } from '../../db/pool.js';
 import type { RowDataPacket } from 'mysql2';
 import * as cola from './cola.repo.js';
+import { actorDe, auditar } from '../auditoria/auditoria.repo.js';
 
 export const colaRouter = Router();
 colaRouter.use(requirePagina('cola'));
@@ -63,9 +64,12 @@ colaRouter.get(
 colaRouter.post(
   '/procesar',
   requireRole('admin'),
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const r = await cola.drenar();
     const modo = config().cola.envioHabilitado ? 'envío real' : 'modo seguro';
+    // Manual "Procesar ahora" (the cron worker is not audited: it runs every few minutes).
+    await auditar(db(), actorDe(req), 'cola.procesar', 'cola', null,
+      `Procesó la cola (${modo}): enviados ${r.enviados}, errores ${r.errores}, esperando ${r.esperando}`, { ...r, modo });
     res.json({
       ...r,
       mensaje: `Cola procesada (${modo}): enviados=${r.enviados}, errores=${r.errores}, esperando=${r.esperando}, previstos=${r.previstos}.`,
@@ -80,7 +84,10 @@ colaRouter.post(
     // Always 200: { ok, mensaje } describes a normal processing outcome (success
     // or a rejected RNDC send), not an HTTP-level error — the frontend reads
     // `ok`/`mensaje` directly to show the flash message either way.
-    res.json(await cola.procesarItem(Number(req.params.id)));
+    const id = Number(req.params.id);
+    const r = await cola.procesarItem(id);
+    await auditar(db(), actorDe(req), 'cola.procesar', 'cola', id, `Procesó el envío #${id}: ${r.mensaje}`, { ok: r.ok });
+    res.json(r);
   }),
 );
 
@@ -93,7 +100,7 @@ colaRouter.post(
   '/:id/cancelar',
   requireRole('admin'),
   asyncHandler(async (req, res) => {
-    res.json(await cola.cancelarItem(Number(req.params.id)));
+    res.json(await cola.cancelarItem(Number(req.params.id), actorDe(req)));
   }),
 );
 
@@ -129,7 +136,7 @@ colaRouter.post(
     }
     try {
       await withTransaction(async (conn) => {
-        await cola.encolarAnulacionIndividual(conn, Number(req.params.id), motivo, String(observaciones ?? ''), req.user!.sub);
+        await cola.encolarAnulacionIndividual(conn, Number(req.params.id), motivo, String(observaciones ?? ''), req.user!.sub, actorDe(req));
       });
     } catch (e) {
       throw badRequest(e instanceof Error ? e.message : 'No se pudo encolar la anulación.');
@@ -180,7 +187,7 @@ despachoRouter.get(
 despachoRouter.put(
   '/:manifiestoId',
   asyncHandler(async (req, res) => {
-    res.json(await cola.actualizarDespacho(Number(req.params.manifiestoId), req.body ?? {}));
+    res.json(await cola.actualizarDespacho(Number(req.params.manifiestoId), req.body ?? {}, actorDe(req)));
   }),
 );
 
@@ -189,7 +196,10 @@ despachoRouter.post(
   requireRole('admin'),
   asyncHandler(async (req, res) => {
     // Always 200 — see the note on POST /cola/:id/procesar above.
-    res.json(await cola.procesarDespacho(Number(req.params.manifiestoId)));
+    const manifiestoId = Number(req.params.manifiestoId);
+    const r = await cola.procesarDespacho(manifiestoId);
+    await auditar(db(), actorDe(req), 'cola.procesar', 'manifiesto', manifiestoId, `Procesó el despacho (manifiesto #${manifiestoId}): ${r.mensaje}`, { ok: r.ok });
+    res.json(r);
   }),
 );
 
@@ -236,7 +246,7 @@ despachoRouter.post(
     }
     try {
       await withTransaction(async (conn) => {
-        await cola.encolarAnulacion(conn, manifiestoId, motivo, String(observaciones ?? ''), req.user!.sub);
+        await cola.encolarAnulacion(conn, manifiestoId, motivo, String(observaciones ?? ''), req.user!.sub, actorDe(req));
       });
     } catch (e) {
       throw badRequest(e instanceof Error ? e.message : 'No se pudo encolar la anulación.');
@@ -373,6 +383,11 @@ cumplidoRouter.post(
       if (sId > 0 && (remesaIds.length > 0 || urbano)) {
         await cola.encolarCumplido(conn, sId, manifiestoId, remesaIds);
       }
+      await auditar(conn, actorDe(req), 'cumplido.guardar', 'manifiesto', manifiestoId,
+        `Guardó el cumplido del manifiesto #${manifiestoId} (${remesaIds.length} remesa(s))`, {
+          cumplido_tipo: body.cumplido_tipo ?? 'C', valor_adicional_flete: body.valor_adicional_flete ?? null,
+          valor_descuento_flete: body.valor_descuento_flete ?? null, remesas: remesaIds,
+        });
     });
 
     res.json({ ok: true });

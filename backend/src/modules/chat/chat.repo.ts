@@ -61,9 +61,14 @@ const PROHIBIDAS =
  * Identificadores sensibles bloqueados aunque el usuario de BD tuviera acceso
  * (por si el chatbot se habilita antes de crear el usuario de solo-lectura).
  * staff_users guarda hashes de contraseña; las columnas rndc_* guardan las
- * credenciales del RNDC en texto plano.
+ * credenciales del RNDC en texto plano. Se bloquean también las TABLAS
+ * completas (maestro_empresa, login_intentos, auditoria, push_subscriptions):
+ * un `SELECT * FROM maestro_empresa` no nombra ninguna columna sensible y aun
+ * así devolvía la clave del RNDC. En producción no hay usuario de solo
+ * lectura configurado, así que esta lista es la barrera real.
  */
-const SENSIBLES = /\b(staff_users|password_hash|rndc_username|rndc_password)\b/i;
+const SENSIBLES =
+  /\b(staff_users|password_hash|rndc_username|rndc_password|maestro_empresa|login_intentos|auditoria|push_subscriptions)\b/i;
 
 export interface SqlValidacion {
   ok: boolean;

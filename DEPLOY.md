@@ -86,6 +86,7 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    schema.sql
    maestros.sql
    catalogos.sql
+   catalogo_configuracion.sql   ← configuraciones de vehículo (sin ella falla la página Vehículos)
    municipios.sql
    migracion_v2.sql   migracion_v3.sql   migracion_v4.sql   migracion_v5.sql
    migracion_v6.sql   migracion_v7.sql   migracion_v8.sql   migracion_v9.sql
@@ -114,6 +115,8 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v47_unique_consecutivos.sql   ← NUEVO — llave única de No. manifiesto/remesa (ver nota)
    migracion_v48_login_intentos.sql   ← NUEVO — límite de intentos de login (5 fallos / 15 min)
    migracion_v49_producto_columnas.sql   ← NUEVO — amplía columnas de producto para el catálogo RNDC
+   migracion_v50_auditoria.sql   ← NUEVO — bitácora de auditoría (página Actividad)
+   migracion_v51_ocultar_clave_rndc.sql   ← NUEVO — borra la clave RNDC de previsualizaciones guardadas
    productos.sql   ← SIEMPRE AL FINAL: catálogo de productos (solo carga si la tabla está vacía)
    ```
 
