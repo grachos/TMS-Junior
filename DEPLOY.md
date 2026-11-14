@@ -9,6 +9,47 @@ Repo: <https://github.com/grachos/TMS-TechCol> (rama `main`).
 
 ---
 
+## Sitios y ramas: prueba primero, producción después
+
+Un mismo repositorio alimenta **varios sitios**, cada uno con **su propia base de
+datos** y sus propias variables de entorno:
+
+| Sitio | Papel | Despliega desde | Base de datos |
+|---|---|---|---|
+| `tmslight.techcol-service.cc` | **Prueba** | rama `main` (cada PR fusionado) | `u279856486_tms_light_new` |
+| `trading-solucion.konekto.site` | **Producción** | rama `produccion` | `u279856486_trading` |
+| *(futuros sitios de producción)* | Producción | rama `produccion` | una base nueva por sitio |
+
+**Flujo de una versión:**
+
+1. Se fusiona el PR a `main` → solo el sitio de **prueba** se despliega.
+2. Si la versión trae migraciones nuevas, se corren primero en la base de **prueba**.
+3. Se revisa el cambio en el sitio de prueba.
+4. **Liberar:** se adelanta `produccion` al mismo commit ya probado
+   (`git push origin <commit>:produccion`, siempre avance rápido, nunca código
+   que no pasó por prueba) → todos los sitios de producción se despliegan.
+5. Las mismas migraciones se corren en **cada** base de producción.
+
+**Sitio de prueba:** `RNDC_AMBIENTE=pruebas`, para que nada de lo que se haga
+ahí se radique ante el Ministerio.
+
+**Agregar un sitio de producción nuevo:**
+
+1. hPanel: crear el sitio Node.js y **una base de datos nueva** para él.
+2. Variables de entorno (sección 3): `DB_*` de **su** base, un `JWT_SECRET`
+   **propio** (si dos sitios comparten secreto, un token de uno sirve en el
+   otro), `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` del administrador de esa
+   empresa y `RNDC_*` / `COLA_*` de esa empresa.
+3. phpMyAdmin: importar en esa base los archivos de la sección 1, en orden,
+   terminando con `productos.sql`.
+4. Configuración de compilación igual a la de los demás sitios: punto de
+   entrada `backend/dist/server.js`, salida `backend/dist`, script `build`.
+5. Conectar el despliegue a la rama **`produccion`** (no `main`). El primer
+   arranque crea el administrador (sección 4).
+6. Cron del worker para ese sitio (sección 5).
+
+---
+
 ## 0. Verifica que tu plan de Hostinger soporte Node.js
 
 hPanel → busca la sección **"Node.js"** (bajo "Avanzado" o "Sitio web"). Está
