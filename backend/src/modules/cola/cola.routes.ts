@@ -291,6 +291,22 @@ cumplidoRouter.post(
     const body = req.body ?? {};
 
     await withTransaction(async (conn) => {
+      // Lock the despacho first (same order as the annulment paths) and only
+      // accept remesas that actually belong to THIS manifiesto: before, any
+      // remesa id in the body was updated and queued, even another dispatch's.
+      if (!(await cola.bloquearManifiesto(conn, manifiestoId))) throw notFound('Manifiesto no encontrado.');
+      const [propias] = await conn.query<RowDataPacket[]>(
+        'SELECT remesa_id FROM manifiesto_remesa WHERE manifiesto_id = ?',
+        [manifiestoId],
+      );
+      const remesasDelManifiesto = new Set((propias as RowDataPacket[]).map((r) => Number(r.remesa_id)));
+      for (const rd of Array.isArray(body.remesas) ? body.remesas : []) {
+        const rid = Number(rd?.id ?? 0);
+        if (rid && !remesasDelManifiesto.has(rid)) {
+          throw badRequest(`La remesa #${rid} no pertenece a este manifiesto.`);
+        }
+      }
+
       // Save cumplido data on the manifiesto.
       await conn.query(
         `UPDATE manifiesto SET cumplido_tipo = ?, fecha_entrega_documentos = ?,

@@ -335,6 +335,22 @@ function calcularPasosAnulacion(manif: Row, remesas: Row[]): PasoAnulacion[] {
   return pasos;
 }
 
+/**
+ * Bloquea la fila del manifiesto hasta el COMMIT/ROLLBACK. Toda operación que
+ * cambie el estado RNDC de un despacho (anular en cascada, anular un documento,
+ * guardar el cumplido) lo llama PRIMERO, antes de cualquier otra lectura de la
+ * transacción: así dos peticiones sobre el mismo despacho se turnan y la
+ * segunda valida contra lo que confirmó la primera. Antes, dos "Anular" a la
+ * vez pasaban ambos la validación y encolaban la anulación dos veces
+ * (test/anulacion_cumplido.db.test.ts). Devuelve false si el manifiesto no existe.
+ *
+ * Orden de bloqueo: manifiesto → (filas de cola/remesas que se tocan después).
+ */
+export async function bloquearManifiesto(conn: Queryable, manifiestoId: number): Promise<boolean> {
+  const [rows] = await conn.query<RowDataPacket[]>('SELECT id FROM manifiesto WHERE id = ? FOR UPDATE', [manifiestoId]);
+  return rows.length > 0;
+}
+
 async function manifiestoYRemesas(conn: Queryable, manifiestoId: number): Promise<{ manif: Row; remesas: Row[] } | null> {
   const manif = await fila(conn, 'SELECT * FROM manifiesto WHERE id = ?', [manifiestoId]);
   if (manif === null) return null;
@@ -387,6 +403,7 @@ export async function encolarAnulacion(
   observaciones: string,
   anuladoPor: number | null,
 ): Promise<void> {
+  if (!(await bloquearManifiesto(conn, manifiestoId))) throw new Error('Manifiesto no encontrado.');
   const datos = await manifiestoYRemesas(conn, manifiestoId);
   if (datos === null) throw new Error('Manifiesto no encontrado.');
   const { manif, remesas } = datos;
@@ -569,6 +586,12 @@ export async function encolarAnulacionIndividual(
   observaciones: string,
   anuladoPor: number | null,
 ): Promise<void> {
+  // manifiesto_id de una fila de cola nunca cambia, así que se lee FUERA de la
+  // transacción (pool): una lectura normal aquí fijaría la "foto" de la
+  // transacción antes del bloqueo y la validación vería datos viejos.
+  const ref = await fila(db(), 'SELECT manifiesto_id FROM cola_envios WHERE id = ?', [colaId]);
+  if (ref === null) throw new Error('Registro de cola no encontrado.');
+  await bloquearManifiesto(conn, Number(ref.manifiesto_id));
   const preview = await previsualizarAnulacionIndividual(colaId, conn);
   if (!preview.puedeAnular || !preview.tipoAnulacion) {
     throw new Error(preview.motivoBloqueo ?? 'No se puede anular este documento.');
