@@ -120,6 +120,7 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v52_ica_municipio.sql   ← NUEVO — tarifa de ICA por municipio de origen (página Impuestos)
    migracion_v53_solicitud_interna.sql   ← NUEVO — solicitudes internas (nada viaja al RNDC). CORRER ANTES de desplegar el código (agrega el estado 'interno'); revisa antes los dos SELECT que trae en su encabezado
    migracion_v54_permisos_acciones.sql   ← NUEVO — permisos por acción (botones críticos) por usuario. CORRER ANTES de desplegar el código; no cambia el comportamiento de nadie hasta que un admin configure una lista
+   migracion_v55_seguridad_acceso.sql   ← NUEVO — límites por IP/cuenta y auditoría de accesos del login. CORRER ANTES de desplegar el código; sin ella el login usa el límite anterior por correo (y avisa en el log)
    productos.sql   ← SIEMPRE AL FINAL: catálogo de productos (solo carga si la tabla está vacía)
    ```
 
@@ -226,6 +227,17 @@ CORS_ORIGINS=*                 # no hace falta restringirlo — front y API comp
 
 JWT_SECRET=<genera-uno-largo-y-aleatorio>   # OBLIGATORIO, 32+ caracteres (ver nota abajo)
 JWT_EXPIRES=8h
+
+# --- Seguridad de la parte pública (todas opcionales) ---
+# Detrás de cuántos proxies está la app (Hostinger pone uno). Con 0 se ignora X-Forwarded-For.
+# Sirve para leer la IP REAL del visitante: los límites por IP y la auditoría dependen de esto.
+TRUST_PROXY=1
+# Content-Security-Policy: report (por defecto, solo anota en la consola del navegador), enforce (bloquea) u off.
+CSP_MODO=report
+# Límites del login en 15 min: fallos por cuenta, fallos por IP, peticiones totales por IP.
+AUTH_CUENTA_FALLOS_MAX=5
+AUTH_IP_FALLOS_MAX=20
+AUTH_IP_TOTAL_MAX=60
 
 DB_HOST=localhost
 DB_PORT=3306

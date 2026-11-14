@@ -31,10 +31,17 @@ import { usuarioRouter } from './modules/usuarios/usuario.routes.js';
 import { pushRouter } from './modules/push/push.routes.js';
 import { auditoriaRouter } from './modules/auditoria/auditoria.routes.js';
 import { impuestosRouter } from './modules/impuestos/impuestos.routes.js';
+import { cabeceraCsp, cspModoDe, hashesDeIndex } from './http/seguridad.js';
 
 export function createApp() {
   const app = express();
   const { corsOrigins, name } = config().app;
+  const { trustProxy, cspModo } = config().seguridad;
+  // Detrás del proxy del hosting, req.ip sería la IP del proxy; con esto es la del visitante
+  // (y req.secure respeta X-Forwarded-Proto). Los límites por IP y la auditoría dependen de esto.
+  if (trustProxy > 0) app.set('trust proxy', trustProxy);
+  const __dirnameCsp = path.dirname(fileURLToPath(import.meta.url));
+  const csp = cabeceraCsp(cspModoDe(cspModo), hashesDeIndex(path.join(__dirnameCsp, '..', '..', 'frontend', 'dist', 'index.html')));
 
   // Canonical host: redirect www.* to the bare host. The TLS certificate covers
   // tmslight.techcol-service.cc but NOT www.tmslight...; because PDF previews use
@@ -57,6 +64,10 @@ export function createApp() {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=(), usb=(), geolocation=(self)');
+    // Solo por HTTPS (req.secure respeta el proxy); sin includeSubDomains ni preload a propósito.
+    if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
+    if (csp && !req.path.startsWith('/api')) res.setHeader(csp.nombre, csp.valor);
     // API responses are per-user: never let a CDN/LiteSpeed cache serve them to someone else.
     if (req.path.startsWith('/api')) res.setHeader('Cache-Control', 'no-store');
     next();
@@ -65,25 +76,15 @@ export function createApp() {
   app.use(cors({ origin: corsOrigins.length ? corsOrigins : true }));
   app.use(express.json({ limit: '2mb' }));
 
-  // --- Health (public) ---
+  // --- Health (public): solo lo mínimo para monitoreo. El ambiente del RNDC y si el
+  // envío real está habilitado se ven únicamente con sesión (GET /api/estado). ---
   app.get(
     '/api/health',
     asyncHandler(async (_req, res) => {
-      const database = await dbDisponible();
-      const cfg = config();
-      res.json({
-        ok: true,
-        app: name,
-        database,
-        rndc: {
-          ambiente: cfg.rndc.ambiente,
-          envioHabilitado: cfg.cola.envioHabilitado,
-        },
-      });
+      res.json({ ok: true, database: await dbDisponible() });
     }),
   );
 
-  // --- Auth (public login, protected me) ---
   app.use('/api/auth', authRouter);
 
   // --- Protected API ---
@@ -91,6 +92,18 @@ export function createApp() {
   // requireRole('admin') where real RNDC sending happens.
   const api = express.Router();
   api.use(requireAuth);
+  api.get(
+    '/estado',
+    asyncHandler(async (_req, res) => {
+      const cfg = config();
+      res.json({
+        ok: true,
+        app: name,
+        database: await dbDisponible(),
+        rndc: { ambiente: cfg.rndc.ambiente, envioHabilitado: cfg.cola.envioHabilitado },
+      });
+    }),
+  );
   api.use('/terceros', terceroRouter);
   api.use('/municipios', municipioRouter);
   api.use('/vehiculos', vehiculoRouter);

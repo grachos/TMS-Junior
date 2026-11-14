@@ -47,6 +47,8 @@ function bool(key: string, def: boolean): boolean {
 export interface AppConfig {
   app: { name: string; env: string; debug: boolean; port: number; corsOrigins: string[] };
   auth: { jwtSecret: string; jwtExpires: string };
+  /** Detrás de cuántos proxies está (para leer la IP real del visitante) y modo de la CSP. */
+  seguridad: { trustProxy: number; cspModo: string };
   db: { host: string; port: number; name: string; user: string; pass: string; charset: string };
   /** Read-only DB user for the chatbot (least privilege). Falls back to the main user. */
   dbReadonly: { user: string; pass: string };
@@ -87,6 +89,11 @@ export function config(): AppConfig {
     auth: {
       jwtSecret: str('JWT_SECRET', 'change-me-in-production'),
       jwtExpires: str('JWT_EXPIRES', '8h'),
+    },
+    seguridad: {
+      // Hostinger pone UN proxy delante de la app. 0 = sin proxy (la IP es la de la conexión).
+      trustProxy: int('TRUST_PROXY', 1),
+      cspModo: str('CSP_MODO', 'report'),
     },
     db: {
       host: str('DB_HOST', 'localhost'),

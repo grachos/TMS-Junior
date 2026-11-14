@@ -64,6 +64,10 @@ describe.skipIf(!RUN)('ingreso y sesiones', () => {
 
   afterAll(async () => {
     await db().query('DELETE FROM login_intentos WHERE email LIKE ?', [`%.${sufijo}@test.local`]);
+    const { hashIdentificador } = await import('../src/modules/auth/accesoGuard.js');
+    const hashes = ['bruta', 'rafaga', 'noexiste', 'reinicio', 'adminA', 'adminB', 'desact'].map((n) => hashIdentificador(correo(n)));
+    await db().query('DELETE FROM auth_intentos WHERE identificador_hash IN (?)', [hashes]);
+    await db().query('DELETE FROM auth_auditoria WHERE identificador_hash IN (?)', [hashes]);
     if (usuarios.length) await db().query('DELETE FROM staff_users WHERE id IN (?)', [usuarios]);
     await new Promise((r) => server.close(r));
     await db().end();
