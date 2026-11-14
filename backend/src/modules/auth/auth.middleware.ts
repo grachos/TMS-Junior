@@ -5,7 +5,8 @@
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import { unauthorized, forbidden } from '../../http/errors.js';
 import { verifyToken, type JwtPayload } from './jwt.js';
-import type { Rol, Pagina } from './auth.repo.js';
+import { findById, claveCacheUsuario, type Rol, type Pagina } from './auth.repo.js';
+import { cached } from '../../util/cache.js';
 
 // Augment Express's Request with the authenticated user.
 declare global {
@@ -17,19 +18,38 @@ declare global {
   }
 }
 
-/** Requires a valid Bearer token; attaches the payload to req.user. */
+/** How long requireAuth trusts its cached read of the user (per process). */
+const USUARIO_CACHE_MS = 30_000;
+
+/**
+ * Requires a valid Bearer token AND a still-active account; attaches the user
+ * to req.user. The role, pages, name and email come from the database, not
+ * from the token: a token used to carry them for its whole 8 h life, so a
+ * deactivated user kept working and a demoted admin kept admin rights until it
+ * expired (test/auth_blindaje.db.test.ts). The lookup is cached for 30 s per
+ * process and invalidated by updateUser(), so changes made from Usuarios apply
+ * on the next request.
+ */
 export const requireAuth: RequestHandler = (req: Request, _res: Response, next: NextFunction) => {
   const header = req.headers.authorization ?? '';
   const [scheme, token] = header.split(' ');
   if (scheme !== 'Bearer' || !token) {
     throw unauthorized('Falta el token de autenticación.');
   }
+  let payload: JwtPayload;
   try {
-    req.user = verifyToken(token);
-    next();
+    payload = verifyToken(token);
   } catch {
     throw unauthorized('Token inválido o expirado.');
   }
+  const id = Number(payload.sub);
+  cached(claveCacheUsuario(id), USUARIO_CACHE_MS, () => findById(id))
+    .then((u) => {
+      if (!u || !u.activo) return next(unauthorized('Tu sesión ya no es válida. Inicia sesión de nuevo.'));
+      req.user = { sub: u.id, email: u.email, nombre: u.nombre, rol: u.rol, paginas: u.paginas };
+      next();
+    })
+    .catch(next);
 };
 
 /**

@@ -69,6 +69,7 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v45_reparar_anulacion_huerfana.sql   ← NUEVO — reparación puntual, idempotente
    migracion_v46_contenedor_serial.sql
    migracion_v47_unique_consecutivos.sql   ← NUEVO — llave única de No. manifiesto/remesa (ver nota)
+   migracion_v48_login_intentos.sql   ← NUEVO — límite de intentos de login (5 fallos / 15 min)
    ```
 
    > **v43 y v44 corrigen corrupción silenciosa de datos, no son solo ajustes
@@ -165,7 +166,7 @@ APP_ENV=produccion
 APP_DEBUG=false
 CORS_ORIGINS=*                 # no hace falta restringirlo — front y API comparten origen
 
-JWT_SECRET=<genera-uno-largo-y-aleatorio>
+JWT_SECRET=<genera-uno-largo-y-aleatorio>   # OBLIGATORIO, 32+ caracteres (ver nota abajo)
 JWT_EXPIRES=8h
 
 DB_HOST=localhost
@@ -192,6 +193,15 @@ VAPID_PRIVATE_KEY=<llave-privada>
 VAPID_SUBJECT=mailto:tu-correo@dominio.com
 PUSH_WATCH_MS=60000             # cada cuánto revisa los contadores para notificar
 ```
+
+> **`JWT_SECRET` es obligatorio.** Desde esta versión la API **no arranca** si
+> `JWT_SECRET` falta, es el valor por defecto (`change-me-in-production`, público en
+> el repositorio) o tiene menos de 32 caracteres: con ese valor cualquiera podría
+> firmar un token de administrador. Genéralo con
+> `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`
+> y agrégalo en hPanel → Node.js → Variables de entorno **antes** de desplegar.
+> Al cambiarlo se cierran todas las sesiones abiertas (cada usuario vuelve a iniciar sesión).
+
 
 No definas `PORT` — Hostinger asigna uno y lo inyecta él solo; el backend ya
 lo lee de `process.env.PORT` vía `config()`.

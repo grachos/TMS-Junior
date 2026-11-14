@@ -22,7 +22,9 @@ const { db } = await import('../src/db/pool.js');
 
 let server: Server;
 let base = '';
-const token = signToken({ sub: 1, email: 'prueba@test.local', nombre: 'Prueba', rol: 'admin', paginas: null });
+// requireAuth checks the user in the DB, so the token must belong to a real active admin.
+let token = '';
+let adminId = 0;
 const creadas: number[] = [];
 
 async function crearSolicitud(vehiculos: number, peso = 0): Promise<number> {
@@ -63,6 +65,13 @@ describe.skipIf(!RUN)('despachar: una vez por vehículo, aunque lleguen peticion
     server = createApp().listen(0);
     await new Promise((r) => server.once('listening', r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const email = `despacho.${Date.now()}@test.local`;
+    const [u] = await db().query<ResultSetHeader>(
+      "INSERT INTO staff_users (email, password_hash, nombre, rol, paginas, activo) VALUES (?, 'x', 'Prueba', 'admin', NULL, 1)",
+      [email],
+    );
+    adminId = u.insertId;
+    token = signToken({ sub: adminId, email, nombre: 'Prueba', rol: 'admin', paginas: null });
   });
 
   afterAll(async () => {
@@ -76,6 +85,7 @@ describe.skipIf(!RUN)('despachar: una vez por vehículo, aunque lleguen peticion
       await db().query('DELETE FROM manifiesto WHERE solicitud_id IN (?)', [creadas]);
       await db().query('DELETE FROM solicitud_servicio WHERE id IN (?)', [creadas]);
     }
+    if (adminId) await db().query('DELETE FROM staff_users WHERE id = ?', [adminId]);
     await new Promise((r) => server.close(r));
     await db().end();
   });

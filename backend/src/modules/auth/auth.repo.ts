@@ -7,6 +7,7 @@
 
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { db } from '../../db/pool.js';
+import { invalidate } from '../../util/cache.js';
 
 type SqlValue = string | number | null;
 
@@ -135,4 +136,46 @@ export async function updateUser(
   if (input.passwordHash) fila.password_hash = input.passwordHash;
   const sets = Object.keys(fila).map((c) => `${c} = :${c}`).join(', ');
   await db().query(`UPDATE staff_users SET ${sets} WHERE id = :id`, { ...fila, id });
+  // requireAuth re-reads the user (cached briefly); drop it so a deactivation
+  // or a role/page change applies on this user's very next request.
+  invalidate(claveCacheUsuario(id));
+}
+
+/** Cache key for the per-request user lookup in requireAuth. */
+export const claveCacheUsuario = (id: number) => `auth:user:${id}`;
+
+// ---------- Login attempts (brute-force lockout, migracion_v48) ----------
+
+/** Failed attempts allowed per email inside the window before locking. */
+export const LOGIN_MAX_FALLOS = 5;
+export const LOGIN_VENTANA_MIN = 15;
+
+const normalizarEmail = (email: string) => email.trim().toLowerCase().slice(0, 190);
+
+/**
+ * Records a login attempt as failed BEFORE the password is checked, and
+ * returns its id plus how many failures this email has in the window since its
+ * last successful login (this attempt included). Recording first means a
+ * burst of simultaneous attempts can't all pass the check before any of them
+ * is counted. The caller flips the row to exito=1 on success.
+ */
+export async function registrarIntento(email: string, ip: string | null): Promise<{ id: number; fallos: number }> {
+  const e = normalizarEmail(email);
+  const [res] = await db().query<ResultSetHeader>(
+    'INSERT INTO login_intentos (email, ip, exito) VALUES (?, ?, 0)',
+    [e, ip ? ip.slice(0, 45) : null],
+  );
+  const [rows] = await db().query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS n FROM login_intentos
+     WHERE email = ? AND exito = 0 AND created_at >= NOW() - INTERVAL ? MINUTE
+       AND id > COALESCE((SELECT MAX(id) FROM login_intentos WHERE email = ? AND exito = 1), 0)`,
+    [e, LOGIN_VENTANA_MIN, e],
+  );
+  return { id: res.insertId, fallos: Number(rows[0]?.n ?? 0) };
+}
+
+/** Marks an attempt as successful (resets the failure count) and purges old rows. */
+export async function marcarIntentoExitoso(id: number): Promise<void> {
+  await db().query('UPDATE login_intentos SET exito = 1 WHERE id = ?', [id]);
+  await db().query('DELETE FROM login_intentos WHERE created_at < NOW() - INTERVAL 30 DAY LIMIT 1000');
 }
