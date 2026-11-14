@@ -25,6 +25,7 @@ export const badRequest = (msg: string) => new AppError(400, msg);
 export const unauthorized = (msg = 'No autenticado.') => new AppError(401, msg);
 export const forbidden = (msg = 'No autorizado.') => new AppError(403, msg);
 export const notFound = (msg = 'No encontrado.') => new AppError(404, msg);
+export const conflict = (msg: string) => new AppError(409, msg);
 
 /** Wraps an async route handler so rejected promises reach the error middleware. */
 export function asyncHandler(fn: RequestHandler): RequestHandler {
@@ -39,6 +40,15 @@ export function errorMiddleware(err: unknown, _req: Request, res: Response, _nex
       error: err.expose ? err.message : 'Ocurrió un error.',
       ...(debug && !err.expose ? { detail: err.message } : {}),
     });
+    return;
+  }
+  // A UNIQUE key rejected the write (e.g. a repeated manifiesto/remesa number,
+  // migracion_v47): nothing was saved, so tell the user to retry instead of a
+  // bare 500. Still logged — it means a guard upstream let a duplicate through.
+  if ((err as { code?: string } | null)?.code === 'ER_DUP_ENTRY') {
+    // eslint-disable-next-line no-console
+    console.error('[error] ER_DUP_ENTRY', err instanceof Error ? err.message : err);
+    res.status(409).json({ error: 'Ya existe un registro con ese número. No se guardó nada; intenta de nuevo.' });
     return;
   }
   const message = err instanceof Error ? err.message : String(err);

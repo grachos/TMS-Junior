@@ -15,7 +15,7 @@ async function main() {
   const r = await drenar();
   // eslint-disable-next-line no-console
   console.log(
-    `[worker] Cola drenada (${modo}): enviados=${r.enviados}, errores=${r.errores}, esperando=${r.esperando}, previstos=${r.previstos}.`,
+    `[worker] Cola drenada (${modo}): enviados=${r.enviados}, errores=${r.errores}, esperando=${r.esperando}, previstos=${r.previstos}, recuperados=${r.recuperados}.`,
   );
   await db().end();
 }

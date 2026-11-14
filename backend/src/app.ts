@@ -48,6 +48,18 @@ export function createApp() {
     next();
   });
 
+  // Baseline security headers (no new dependency). No CSP yet: index.html runs
+  // inline scripts (splash), so a CSP needs nonces/hashes first. No HSTS here
+  // either: it's better set at the hosting/TLS layer.
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    // API responses are per-user: never let a CDN/LiteSpeed cache serve them to someone else.
+    if (req.path.startsWith('/api')) res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
+
   app.use(cors({ origin: corsOrigins.length ? corsOrigins : true }));
   app.use(express.json({ limit: '2mb' }));
 

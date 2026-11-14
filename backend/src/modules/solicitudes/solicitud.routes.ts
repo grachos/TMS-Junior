@@ -10,7 +10,6 @@
 import { Router } from 'express';
 import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
 import { validarProductoPeligrosa, validarContenedorSerial } from '../../util/validaciones.js';
-import { pesoTotalDe } from '../../util/pesoSolicitud.js';
 import { requirePagina } from '../auth/auth.middleware.js';
 import * as repo from './solicitud.repo.js';
 
@@ -87,38 +86,12 @@ solicitudRouter.post(
   '/:id/despachar',
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
-    const data = await repo.obtener(id);
-    if (!data) throw notFound('Solicitud no encontrada.');
-    if (data.solicitud.estado === 'despachada') throw badRequest('La solicitud ya fue despachada.');
-    if (Number(data.solicitud.cantidad_vehiculos ?? 1) < 1) {
-      throw badRequest('Ya no quedan vehículos por despachar en esta solicitud.');
-    }
     if (!req.body?.placa_vehiculo || !req.body?.conductor_num_id) {
       throw badRequest('Placa y conductor son obligatorios para despachar.');
     }
 
-    // Weight budget: don't let a dispatcher over-allocate more kg across
-    // despachos than the solicitud actually declared.
-    const pesoTotal = Number(data.solicitud.peso ?? 0);
-    if (pesoTotal > 0) {
-      const pesoDisponible = Number(data.solicitud.peso_disponible ?? pesoTotal);
-      if (pesoDisponible <= 0) {
-        throw badRequest(
-          `Ya se agotó el peso disponible de esta solicitud (${pesoTotal.toLocaleString('es-CO')} kg). No es posible despachar más remesas.`,
-        );
-      }
-      const remesasBody = Array.isArray(req.body?.remesas) ? req.body.remesas : [];
-      // No custom remesas given -> confirmarDespacho() seeds one default
-      // remesa that inherits the solicitud's full peso.
-      const pesoNuevo = remesasBody.length > 0 ? pesoTotalDe(remesasBody) : pesoTotal;
-      if (pesoNuevo - pesoDisponible > 0.001) {
-        throw badRequest(
-          `El peso de las remesas (${pesoNuevo.toLocaleString('es-CO')} kg) supera el peso disponible ` +
-            `(${pesoDisponible.toLocaleString('es-CO')} kg) de esta solicitud.`,
-        );
-      }
-    }
-
+    // Estado, vehículos restantes y peso disponible se validan DENTRO de la
+    // transacción, con la solicitud bloqueada (confirmarDespacho).
     await repo.confirmarDespacho(id, req.body);
     res.json({ ok: true });
   }),
