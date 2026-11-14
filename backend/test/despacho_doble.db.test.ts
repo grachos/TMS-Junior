@@ -118,4 +118,29 @@ describe.skipIf(!RUN)('despachar: una vez por vehículo, aunque lleguen peticion
     expect(codigos(rs)).toEqual([200, 400]);
     expect(await estado(id)).toMatchObject({ manifiestos: 1, peso: 60, restantes: 1, estado: 'procesada' });
   });
+
+  // Campos opcionales vacíos: el formulario envía '' (no null) para anticipo y
+  // para los números/fechas de la remesa que el usuario deja en blanco. En una
+  // base en modo estricto eso hacía fallar todo el despacho con un 500
+  // ("Incorrect decimal value: ''"); visto en la prueba E2E del hallazgo #4.
+  it('despachar con anticipo y campos opcionales de la remesa vacíos funciona', async () => {
+    const id = await crearSolicitud(1);
+    const r = await fetch(`${base}/api/solicitudes/${id}/despachar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        placa_vehiculo: 'TST123', conductor_tipo_id: 'C', conductor_num_id: '1',
+        valor_anticipo: '', emf: '',
+        remesas: [{
+          peso: '', valor_mercancia: '', descripcion_producto: 'Carga de prueba',
+          fecha_cita_cargue: '', hora_cita_cargue: '', fecha_cita_descargue: '', hora_cita_descargue: '',
+          horas_pacto_cargue: '', minutos_pacto_cargue: '', horas_pacto_descargue: '', minutos_pacto_descargue: '',
+        }],
+      }),
+    });
+    expect(r.status).toBe(200);
+    expect(await estado(id)).toMatchObject({ manifiestos: 1, remesas: 1 });
+    const [[m]] = await db().query<RowDataPacket[]>('SELECT valor_anticipo FROM manifiesto WHERE solicitud_id = ?', [id]);
+    expect(m!.valor_anticipo).toBeNull();
+  });
 });
