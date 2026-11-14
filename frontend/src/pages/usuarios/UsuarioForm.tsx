@@ -252,6 +252,13 @@ export default function UsuarioForm() {
           </fieldset>
         )}
 
+        {form.rol === 'admin' && (
+          <p className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+            Un <strong>administrador</strong> tiene acceso a todas las páginas y puede ejecutar todas las acciones; no se le configuran permisos.
+            Para elegir qué menús y botones puede usar una persona, cambia su rol a <strong>Operador</strong> o crea un usuario operador.
+          </p>
+        )}
+
         {form.rol === 'operador' && catalogo.length > 0 && (
           <fieldset className="card">
             <legend className="px-1 text-sm font-semibold text-celeste-700">Acciones críticas permitidas</legend>

@@ -51,6 +51,18 @@ export function errorMiddleware(err: unknown, _req: Request, res: Response, _nex
     res.status(409).json({ error: 'Ya existe un registro con ese número. No se guardó nada; intenta de nuevo.' });
     return;
   }
+  // A column/table the code expects is missing: the database is behind the code
+  // (a migration was not run on THIS database). Say so instead of a bare 500.
+  const code = (err as { code?: string } | null)?.code;
+  if (code === 'ER_BAD_FIELD_ERROR' || code === 'ER_NO_SUCH_TABLE') {
+    // eslint-disable-next-line no-console
+    console.error(`[error] ${code}: la base de datos no está al día`, err instanceof Error ? err.message : err);
+    res.status(500).json({
+      error: 'La base de datos de este sitio no está al día: falta correr una migración. Avisa al responsable técnico.',
+      ...(debug ? { detail: err instanceof Error ? err.message : String(err) } : {}),
+    });
+    return;
+  }
   const message = err instanceof Error ? err.message : String(err);
   // eslint-disable-next-line no-console
   console.error('[error]', message, err);
