@@ -40,8 +40,10 @@ ahí se radique ante el Ministerio.
    **propio** (si dos sitios comparten secreto, un token de uno sirve en el
    otro), `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` del administrador de esa
    empresa y `RNDC_*` / `COLA_*` de esa empresa.
-3. phpMyAdmin: importar en esa base los archivos de la sección 1, en orden,
-   terminando con `productos.sql`.
+3. phpMyAdmin: importar en esa base **un solo archivo**, `instalacion_nueva.sql`,
+   que trae todo en orden (esquema, catálogos, municipios, migraciones y
+   productos). Se genera con `node database/generar_instalacion.mjs` (no se
+   versiona). Solo para bases vacías.
 4. Configuración de compilación igual a la de los demás sitios: punto de
    entrada `backend/dist/server.js`, salida `backend/dist`, script `build`.
 5. Conectar el despliegue a la rama **`produccion`** (no `main`). El primer
