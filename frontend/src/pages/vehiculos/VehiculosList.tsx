@@ -7,14 +7,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Pencil, Send, Loader2, Truck } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
-import { useAuthStore } from '../../store/auth';
+import { useCan } from '../../store/auth';
 import { Pagination } from '../../components/Pagination';
 import { Alert } from '../../components/Alert';
 import { StatusBadge } from '../../components/StatusBadge';
 import type { PagedResponse, VehiculoListRow } from '../../types';
 
 export default function VehiculosList() {
-  const can = useAuthStore((s) => s.can);
+  const can = useCan();
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState<PagedResponse<VehiculoListRow> | null>(null);
   const [q, setQ] = useState(params.get('q') ?? '');

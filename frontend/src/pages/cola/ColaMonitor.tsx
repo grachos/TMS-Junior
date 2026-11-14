@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Send, Loader2, FileCode, Play, X, Ban, TriangleAlert, XCircle } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
-import { useAuthStore } from '../../store/auth';
+import { useCan } from '../../store/auth';
 import { Alert } from '../../components/Alert';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useEnvioUnico } from '../../lib/useEnvioUnico';
@@ -71,7 +71,7 @@ const CAT_STYLE: Record<string, string> = {
 const RESUMEN = ['pendiente', 'enviando', 'enviado', 'error'] as const;
 
 export default function ColaMonitor() {
-  const can = useAuthStore((s) => s.can);
+  const can = useCan();
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState<ColaResponse | null>(null);
   const [loading, setLoading] = useState(false);
