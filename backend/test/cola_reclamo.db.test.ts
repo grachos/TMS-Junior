@@ -90,4 +90,54 @@ describe.skipIf(!RUN)('cola_envios: reclamo atómico antes de enviar al RNDC', (
     );
     expect(rows[0]).toMatchObject({ estado: 'enviado', rndc_ingreso_id: '999', intentos: 1 });
   });
+
+  // Hallazgo #5: si el proceso muere a mitad del envío, la fila queda en
+  // 'enviando' para siempre. drenar() debe recuperarla pasado el umbral.
+  async function atascar(id: number, minutosAtras: number, intentos = 0): Promise<void> {
+    await db().query(
+      `UPDATE cola_envios SET estado = 'enviando', intentos = ?, updated_at = NOW() - INTERVAL ? MINUTE WHERE id = ?`,
+      [intentos, minutosAtras, id],
+    );
+  }
+  async function leer(id: number) {
+    const [rows] = await db().query<import('mysql2').RowDataPacket[]>(
+      'SELECT estado, intentos, ultimo_error FROM cola_envios WHERE id = ?',
+      [id],
+    );
+    return rows[0]!;
+  }
+
+  it('una fila atascada en "enviando" (proceso caído) se recupera y se envía en el siguiente drenar', async () => {
+    const id = await crearFila();
+    await atascar(id, 30);
+    const r = await cola.drenar();
+    expect(enviosDe(id)).toBe(1);
+    expect(r.recuperados).toBe(1);
+    expect(await leer(id)).toMatchObject({ estado: 'enviado', intentos: 2 }); // el intento interrumpido cuenta
+  });
+
+  it('una fila que se está enviando ahora mismo (reciente) no se toca', async () => {
+    const id = await crearFila();
+    await atascar(id, 1);
+    await cola.drenar();
+    expect(enviosDe(id)).toBe(0);
+    expect(await leer(id)).toMatchObject({ estado: 'enviando' });
+  });
+
+  it('si el intento interrumpido era el último, queda en error visible y no se reenvía', async () => {
+    const id = await crearFila();
+    await atascar(id, 30, 9); // max_intentos = 10
+    await cola.drenar();
+    expect(enviosDe(id)).toBe(0);
+    const f = await leer(id);
+    expect(f).toMatchObject({ estado: 'error', intentos: 10 });
+    expect(String(f.ultimo_error)).toMatch(/interrumpid/i);
+  });
+
+  it('dos drenar a la vez recuperan y envían la fila atascada una sola vez', async () => {
+    const id = await crearFila();
+    await atascar(id, 30);
+    await Promise.all([cola.drenar(), cola.drenar()]);
+    expect(enviosDe(id)).toBe(1);
+  });
 });

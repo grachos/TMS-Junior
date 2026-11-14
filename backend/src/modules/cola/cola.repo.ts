@@ -1134,10 +1134,45 @@ export interface DrenarResult {
   errores: number;
   esperando: number;
   previstos: number;
+  /** Filas recuperadas de 'enviando' tras un envío interrumpido. */
+  recuperados: number;
 }
 
 /** Drains the queue in order, respecting dependencies. Port of drenar(). */
+/**
+ * Recupera filas que quedaron en 'enviando' porque el proceso murió a mitad
+ * del envío (reinicio del hosting, despliegue, caída): sin esto nunca vuelven
+ * a enviarse y el documento queda sin radicar en silencio. Se consideran
+ * interrumpidas si llevan más de `minutos` sin cambiar (updated_at lo
+ * actualiza el reclamo de reclamarFila()).
+ *
+ * El intento interrumpido cuenta como intento. Si era el último, la fila pasa a
+ * 'error' (visible en Cola) en vez de reenviarse; si no, vuelve a 'pendiente'
+ * y este mismo drenar la reclama. Reenviar es seguro si el envío original sí
+ * llegó al RNDC: este responde "DUPLICADO:<ingresoid>" y RndcClient lo trata
+ * como éxito con el ingreso original. Una sola sentencia condicional
+ * (estado = 'enviando'), así que dos drenar simultáneos no la recuperan dos veces.
+ */
+export async function recuperarEnviandoAtascados(minutos: number): Promise<number> {
+  const nota = `Envío interrumpido: quedó en "enviando" más de ${minutos} min (el proceso se detuvo a mitad del envío).`;
+  const [res] = await db().query<ResultSetHeader>(
+    `UPDATE cola_envios
+     -- Every expression reads the ORIGINAL intentos (incremented last), so the
+     -- result is the same with or without MariaDB's SIMULTANEOUS_ASSIGNMENT.
+     SET estado = IF(intentos + 1 >= max_intentos, 'error', 'pendiente'),
+         ultimo_error = IF(intentos + 1 >= max_intentos,
+           CONCAT(?, ' Se agotaron los intentos; revisa en el RNDC si quedó radicado antes de reintentar.'),
+           CONCAT(?, ' Se reintentará.')),
+         programado_para = NULL,
+         intentos = intentos + 1
+     WHERE estado = 'enviando' AND updated_at < NOW() - INTERVAL ? MINUTE`,
+    [nota, nota, minutos],
+  );
+  return res.affectedRows;
+}
+
 export async function drenar(): Promise<DrenarResult> {
+  const recuperados = await recuperarEnviandoAtascados(config().cola.minutosEnviandoAtascado);
   await purgarCumplidoRemesaUrbano();
   const habilitado = config().cola.envioHabilitado;
   const minutos = config().cola.minutosReintento;
@@ -1149,7 +1184,7 @@ export async function drenar(): Promise<DrenarResult> {
      ORDER BY solicitud_id, orden, id`,
   );
 
-  const res: DrenarResult = { enviados: 0, errores: 0, esperando: 0, previstos: 0 };
+  const res: DrenarResult = { enviados: 0, errores: 0, esperando: 0, previstos: 0, recuperados };
 
   for (const row of pendientes as Row[]) {
     const id = Number(row.id);

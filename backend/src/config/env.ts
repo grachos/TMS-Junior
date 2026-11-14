@@ -55,7 +55,7 @@ export interface AppConfig {
     hostOverride: string;
     timeout: number;
   };
-  cola: { maxIntentos: number; minutosReintento: number; envioHabilitado: boolean };
+  cola: { maxIntentos: number; minutosReintento: number; minutosEnviandoAtascado: number; envioHabilitado: boolean };
   /** Web Push (own VAPID keypair, no third-party notification service). */
   push: { vapidPublicKey: string; vapidPrivateKey: string; vapidSubject: string; watchMs: number; habilitado: boolean };
   /** Data chatbot via OpenRouter (OpenAI-compatible API). */
@@ -111,6 +111,10 @@ export function config(): AppConfig {
     cola: {
       maxIntentos: int('COLA_MAX_INTENTOS', 10),
       minutosReintento: int('COLA_MINUTOS_REINTENTO', 15),
+      // A row left in 'enviando' longer than this is considered interrupted
+      // (process died mid-send) and is recovered by drenar(). Must be well above
+      // the RNDC timeout (30 s per call).
+      minutosEnviandoAtascado: int('COLA_MINUTOS_ENVIANDO_ATASCADO', 10),
       // Safety switch: false builds/previews XML but does NOT send to the RNDC.
       envioHabilitado: bool('COLA_ENVIO_HABILITADO', false),
     },

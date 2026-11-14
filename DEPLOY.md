@@ -181,6 +181,7 @@ RNDC_TIMEOUT=30
 
 COLA_MAX_INTENTOS=10
 COLA_MINUTOS_REINTENTO=15
+COLA_MINUTOS_ENVIANDO_ATASCADO=10      # opcional: minutos en "enviando" tras los que se recupera una fila interrumpida
 COLA_ENVIO_HABILITADO=false     # true SOLO cuando quieras enviar de verdad al RNDC
 
 # --- Notificaciones push (Web Push, VAPID propio, sin servicio de terceros) ---
