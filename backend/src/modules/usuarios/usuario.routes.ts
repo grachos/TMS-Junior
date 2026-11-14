@@ -13,6 +13,8 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
 import { requireRole } from '../auth/auth.middleware.js';
+import { withTransaction } from '../../db/pool.js';
+import { actorDe, auditar, cambios } from '../auditoria/auditoria.repo.js';
 import { PAGINAS, type Pagina, createUser, updateUser, listUsers, emailExists, findById, toPublic } from '../auth/auth.repo.js';
 
 export const usuarioRouter = Router();
@@ -73,7 +75,13 @@ usuarioRouter.post(
     const { email, password, nombre, rol, paginas } = parsed.data;
     if (await emailExists(email)) throw badRequest('Ya existe una cuenta con ese correo.');
     const passwordHash = await bcrypt.hash(password, 10);
-    const id = await createUser({ email, passwordHash, nombre, rol, paginas: paginas ?? null });
+    const id = await withTransaction(async (conn) => {
+      const nuevo = await createUser({ email, passwordHash, nombre, rol, paginas: paginas ?? null }, conn);
+      await auditar(conn, actorDe(req), 'usuario.crear', 'usuario', nuevo, `Creó el usuario ${email} (${rol})`, {
+        email, nombre, rol, paginas: paginas ?? null,
+      });
+      return nuevo;
+    });
     res.status(201).json({ id });
   }),
 );
@@ -109,7 +117,16 @@ usuarioRouter.put(
     if (await emailExists(email, id)) throw badRequest('Ya existe otra cuenta con ese correo.');
 
     const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
-    await updateUser(id, { email, nombre, rol, paginas: paginas ?? null, activo, passwordHash });
+    await withTransaction(async (conn) => {
+      await updateUser(id, { email, nombre, rol, paginas: paginas ?? null, activo, passwordHash }, conn);
+      const diff: Record<string, unknown> = cambios(
+        { email: existente.email, nombre: existente.nombre, rol: existente.rol, paginas: existente.paginas, activo: Number(existente.activo) },
+        { email: email.trim().toLowerCase(), nombre: nombre.trim(), rol, paginas: rol === 'admin' ? null : (paginas ?? null), activo: activo ? 1 : 0 },
+      );
+      if (passwordHash) diff.password = 'cambió';
+      const resumen = Object.keys(diff).length ? Object.keys(diff).join(', ') : 'sin cambios';
+      await auditar(conn, actorDe(req), 'usuario.actualizar', 'usuario', id, `Editó el usuario ${existente.email}: ${resumen}`, { cambios: diff });
+    });
     res.json({ ok: true });
   }),
 );

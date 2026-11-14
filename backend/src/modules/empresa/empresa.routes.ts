@@ -9,6 +9,8 @@ import { z } from 'zod';
 import { asyncHandler, badRequest } from '../../http/errors.js';
 import { requireRole } from '../auth/auth.middleware.js';
 import * as repo from './empresa.repo.js';
+import { withTransaction } from '../../db/pool.js';
+import { actorDe, auditar, cambios } from '../auditoria/auditoria.repo.js';
 
 export const empresaRouter = Router();
 
@@ -48,7 +50,15 @@ empresaRouter.put(
   asyncHandler(async (req, res) => {
     const parsed = empresaSchema.safeParse(req.body);
     if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Datos inválidos.');
-    await repo.guardar(parsed.data);
+    await withTransaction(async (conn) => {
+      const antes = await repo.obtener(conn);
+      await repo.guardar(parsed.data, conn);
+      const despues = await repo.obtener(conn);
+      // The RNDC password is a secret: only record that it changed.
+      const diff = cambios(antes as unknown as Record<string, unknown>, despues as unknown as Record<string, unknown>, ['rndc_password']);
+      const resumen = Object.keys(diff).length ? Object.keys(diff).join(', ') : 'sin cambios';
+      await auditar(conn, actorDe(req), 'empresa.actualizar', 'empresa', 1, `Editó los datos de la empresa: ${resumen}`, { cambios: diff });
+    });
     res.json({ ok: true });
   }),
 );

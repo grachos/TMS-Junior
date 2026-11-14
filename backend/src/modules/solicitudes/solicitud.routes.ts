@@ -12,6 +12,7 @@ import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
 import { validarProductoPeligrosa, validarContenedorSerial } from '../../util/validaciones.js';
 import { requirePagina } from '../auth/auth.middleware.js';
 import * as repo from './solicitud.repo.js';
+import { actorDe } from '../auditoria/auditoria.repo.js';
 
 export const solicitudRouter = Router();
 solicitudRouter.use(requirePagina('solicitudes'));
@@ -52,7 +53,7 @@ solicitudRouter.post(
       String(req.body?.contenedor_serial ?? ''),
     );
     if (errContenedor) throw badRequest(errContenedor);
-    const id = await repo.crear(req.body ?? {});
+    const id = await repo.crear(req.body ?? {}, actorDe(req));
     res.status(201).json({ id });
   }),
 );
@@ -76,7 +77,7 @@ solicitudRouter.put(
       String(req.body?.contenedor_serial ?? ''),
     );
     if (errContenedor) throw badRequest(errContenedor);
-    await repo.actualizar(id, req.body ?? {});
+    await repo.actualizar(id, req.body ?? {}, actorDe(req));
     res.json({ ok: true });
   }),
 );
@@ -92,7 +93,7 @@ solicitudRouter.post(
 
     // Estado, vehículos restantes y peso disponible se validan DENTRO de la
     // transacción, con la solicitud bloqueada (confirmarDespacho).
-    await repo.confirmarDespacho(id, req.body);
+    await repo.confirmarDespacho(id, req.body, actorDe(req));
     res.json({ ok: true });
   }),
 );

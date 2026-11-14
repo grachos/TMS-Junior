@@ -64,12 +64,12 @@ export async function obtener(exec: Queryable = db()): Promise<Empresa> {
 }
 
 /** Upserts the company row. Port of guardar(). */
-export async function guardar(datos: Partial<Empresa>): Promise<void> {
+export async function guardar(datos: Partial<Empresa>, exec: Queryable = db()): Promise<void> {
   const str = (v: unknown) => {
     const s = (v ?? '').toString().trim();
     return s || null;
   };
-  await db().query(
+  await exec.query(
     `INSERT INTO maestro_empresa (
         id, tipo_id, nit, rndc_username, rndc_password, razon_social, direccion, telefono, cod_municipio, municipio_nombre,
         nro_poliza, aseguradora_carga_nombre, aseguradora_carga_nit, poliza_carga_numero, poliza_carga_vencimiento,
