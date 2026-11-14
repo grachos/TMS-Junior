@@ -226,18 +226,30 @@ Finaliza/guarda y lanza el deploy (o "Redesplegar" si ya existía).
 
 ## 4. Primer arranque: crear el admin
 
-Una vez el deploy termina en verde, necesitas correr `seed:admin` una vez.
-Si el panel te da una terminal (revisa si hay un botón de shell/consola en
-la pantalla de la app, o **Avanzado → SSH Access** en hPanel clásico):
+En una instalación nueva (tabla `staff_users` vacía) el primer administrador
+se crea **solo, al arrancar la app**, con estas variables de entorno:
+
+```
+SEED_ADMIN_EMAIL=admin@tudominio.com
+SEED_ADMIN_PASSWORD=<al menos 12 caracteres>
+SEED_ADMIN_NOMBRE=Admin            # opcional
+```
+
+- Solo actúa si **no hay ningún usuario**: en los reinicios siguientes no hace
+  nada, y nunca cambia ni reactiva a un usuario existente.
+- El log de arranque dice `[auth] Se creó el primer administrador (...)`. Si
+  falta algo, lo explica ahí mismo (variables vacías, contraseña corta, o
+  falta importar `schema.sql`); la API arranca igual.
+- Después de entrar: cambia la contraseña en **Usuarios** y borra
+  `SEED_ADMIN_PASSWORD` de las variables de entorno.
+
+Si tienes terminal (SSH), también sigue disponible el script, que además
+sirve para restablecer la contraseña de un admin existente:
 
 ```bash
 cd <ruta-de-tu-app>          # la misma que "Directorio raíz" del deploy
 npm --prefix backend run seed:admin -- --email admin@tudominio.com --password "CAMBIA-ESTO" --nombre "Admin"
 ```
-
-Si no tienes shell, dilo — hay una alternativa (endpoint temporal o
-`INSERT` directo por phpMyAdmin con un hash bcrypt) pero preferí siempre
-la vía del script porque hashea la contraseña correctamente.
 
 Prueba:
 - `https://<tu-dominio-asignado>/api/health` → `{"ok":true,"database":{"ok":true}}`
@@ -310,7 +322,7 @@ Verificación: al entrar a la app aparece un botón de chat abajo a la derecha;
 
 - [ ] `GET /api/health` responde `{"ok":true,"database":{"ok":true}}`.
 - [ ] `/` sirve la pantalla de login de React (no "Cannot GET /").
-- [ ] Login con el usuario creado por `seed:admin` funciona.
+- [ ] Login con el primer administrador (creado al arrancar o con `seed:admin`) funciona.
 - [ ] `COLA_ENVIO_HABILITADO=false` mientras pruebas — la cola arma y
       previsualiza el XML pero no envía nada real al RNDC.
 - [ ] `RNDC_AMBIENTE=pruebas` hasta confirmar que todo el flujo (solicitud →

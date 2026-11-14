@@ -5,6 +5,7 @@
 import { createApp } from './app.js';
 import { config } from './config/env.js';
 import { problemaSecretoJwt } from './modules/auth/jwt.js';
+import { crearPrimerAdminSiFalta } from './modules/auth/primerAdmin.js';
 import { iniciarWatcherPush } from './modules/push/push.watcher.js';
 
 // Refuse to start with a forgeable JWT secret: anyone could sign an admin token.
@@ -24,6 +25,14 @@ const { port, name, env } = config().app;
 app.listen(port, () => {
   // eslint-disable-next-line no-console
   console.log(`[${name}] API listening on http://localhost:${port} (env=${env})`);
+});
+
+// Fresh installation (empty staff_users): create the first admin from
+// SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD. Does nothing once users exist.
+void crearPrimerAdminSiFalta({
+  email: process.env.SEED_ADMIN_EMAIL,
+  password: process.env.SEED_ADMIN_PASSWORD,
+  nombre: process.env.SEED_ADMIN_NOMBRE,
 });
 
 iniciarWatcherPush();
