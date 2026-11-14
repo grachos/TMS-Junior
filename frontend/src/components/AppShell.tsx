@@ -37,6 +37,7 @@ import { logoutWithSplash, useSplash } from '../lib/splash';
 import { ChatWidget } from './ChatWidget';
 import { KonektoMark, KonektoWordmark } from './Logo';
 import { IdleTimeout } from './IdleTimeout';
+import { NuevaVersion } from './NuevaVersion';
 import { soportePush, suscripcionActual, activarPush, desactivarPush } from '../lib/push';
 
 /** How often to re-poll the nav badge counts (ms). */
@@ -313,6 +314,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <ChatWidget />
       <IdleTimeout />
+      <NuevaVersion />
     </div>
   );
 }
