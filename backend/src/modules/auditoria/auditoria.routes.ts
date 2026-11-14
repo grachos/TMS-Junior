@@ -5,11 +5,11 @@
 
 import { Router } from 'express';
 import { asyncHandler } from '../../http/errors.js';
-import { requireRole } from '../auth/auth.middleware.js';
+import { requireAccion } from '../auth/auth.middleware.js';
 import { accionesRegistradas, listar } from './auditoria.repo.js';
 
 export const auditoriaRouter = Router();
-auditoriaRouter.use(requireRole('admin'));
+auditoriaRouter.use(requireAccion('actividad.ver'));
 
 const texto = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined);
 const fecha = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);

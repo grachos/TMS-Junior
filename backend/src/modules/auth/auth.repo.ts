@@ -11,6 +11,7 @@ import type { Pool, PoolConnection } from 'mysql2/promise';
 type Queryable = Pool | PoolConnection;
 import { db } from '../../db/pool.js';
 import { invalidate } from '../../util/cache.js';
+import { ACCIONES, normalizarAcciones, tieneAccion, type Accion } from './permisos.js';
 
 type SqlValue = string | number | null;
 
@@ -31,16 +32,19 @@ export interface StaffUser {
   rol: Rol;
   /** Allowed pages for rol='operador'; null = all (backward compatible). Ignored for 'admin'. */
   paginas: Pagina[] | null;
+  /** Acciones críticas permitidas a un operador; null = valores por defecto (permisos.ts). */
+  acciones: Accion[] | null;
   activo: 0 | 1;
   created_at: string;
 }
 
 /** Public shape returned to clients (never leaks the password hash). */
-export type StaffUserPublic = Omit<StaffUser, 'password_hash'>;
+/** `permisos` = acciones que el usuario puede ejecutar HOY (ya resueltas: admin todas, operador su lista o los valores por defecto). La interfaz solo lee esto. */
+export type StaffUserPublic = Omit<StaffUser, 'password_hash'> & { permisos: Accion[] };
 
 export function toPublic(u: StaffUser): StaffUserPublic {
   const { password_hash: _drop, ...rest } = u;
-  return rest;
+  return { ...rest, permisos: ACCIONES.filter((a) => tieneAccion(u, a)) };
 }
 
 /**
@@ -60,7 +64,25 @@ function hydrate(row: RowDataPacket): StaffUser {
       paginas = null;
     }
   }
-  return { ...(row as unknown as StaffUser), paginas };
+  return { ...(row as unknown as StaffUser), paginas, acciones: parseAcciones(row.acciones) };
+}
+
+/** `acciones` llega como texto (LONGTEXT) o null; una columna ausente o un JSON dañado = valores por defecto. */
+function parseAcciones(raw: unknown): Accion[] | null {
+  if (Array.isArray(raw)) return normalizarAcciones(raw as string[]);
+  if (typeof raw !== 'string' || raw === '') return null;
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? normalizarAcciones(v as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Serializa acciones: el admin las ignora (null = valores por defecto / todo). */
+function serializeAcciones(rol: Rol, acciones: Accion[] | null): string | null {
+  if (rol === 'admin' || acciones === null) return null;
+  return JSON.stringify(normalizarAcciones(acciones) ?? []);
 }
 
 /** Serializes paginas for storage: 'admin' always ignores it (null = full access). */
@@ -91,16 +113,18 @@ export async function createUser(input: {
   nombre: string;
   rol: Rol;
   paginas: Pagina[] | null;
+  acciones?: Accion[] | null;
 }, exec: Queryable = db()): Promise<number> {
   const [res] = await exec.query<ResultSetHeader>(
-    `INSERT INTO staff_users (email, password_hash, nombre, rol, paginas, activo)
-     VALUES (:email, :passwordHash, :nombre, :rol, :paginas, 1)`,
+    `INSERT INTO staff_users (email, password_hash, nombre, rol, paginas, acciones, activo)
+     VALUES (:email, :passwordHash, :nombre, :rol, :paginas, :acciones, 1)`,
     {
       email: input.email.trim().toLowerCase(),
       passwordHash: input.passwordHash,
       nombre: input.nombre.trim(),
       rol: input.rol,
       paginas: serializePaginas(input.rol, input.paginas),
+      acciones: serializeAcciones(input.rol, input.acciones ?? null),
     },
   );
   return res.insertId;
@@ -127,7 +151,7 @@ export async function emailExists(email: string, excludeId: number | null = null
 /** Updates a staff user's profile/permissions (and optionally its password). */
 export async function updateUser(
   id: number,
-  input: { email: string; nombre: string; rol: Rol; paginas: Pagina[] | null; activo: boolean; passwordHash?: string },
+  input: { email: string; nombre: string; rol: Rol; paginas: Pagina[] | null; acciones?: Accion[] | null; activo: boolean; passwordHash?: string },
   exec: Queryable = db(),
 ): Promise<void> {
   const fila: Record<string, SqlValue> = {
@@ -137,6 +161,8 @@ export async function updateUser(
     paginas: serializePaginas(input.rol, input.paginas),
     activo: input.activo ? 1 : 0,
   };
+  // undefined = el cliente no envió acciones: se conservan las guardadas.
+  if (input.acciones !== undefined || input.rol === 'admin') fila.acciones = serializeAcciones(input.rol, input.acciones ?? null);
   if (input.passwordHash) fila.password_hash = input.passwordHash;
   const sets = Object.keys(fila).map((c) => `${c} = :${c}`).join(', ');
   await exec.query(`UPDATE staff_users SET ${sets} WHERE id = :id`, { ...fila, id });

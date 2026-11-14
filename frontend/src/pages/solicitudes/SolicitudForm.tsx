@@ -21,6 +21,7 @@ import {
 } from '../../lib/format';
 import type { AcItem, Producto } from '../../types';
 import { useEnvioUnico } from '../../lib/useEnvioUnico';
+import { useAuthStore } from '../../store/auth';
 
 /** Message shown/blocked when a dangerous product lacks UN + estado (mirrors the server). */
 const PELIGROSA_MSG =
@@ -82,6 +83,7 @@ function Sel({ name, value, onChange, options, withEmpty = true }: {
 }
 
 export default function SolicitudForm() {
+  const puedeInterna = useAuthStore((s) => s.can('solicitud.interna'));
   const { id } = useParams();
   const editar = Boolean(id);
   const navigate = useNavigate();
@@ -326,7 +328,7 @@ export default function SolicitudForm() {
                   type="checkbox"
                   className="mt-1"
                   checked={f.interna === '1'}
-                  disabled={internaBloqueada}
+                  disabled={internaBloqueada || !puedeInterna}
                   onChange={(e) => set('interna', e.target.checked ? '1' : '0')}
                 />
                 <span>

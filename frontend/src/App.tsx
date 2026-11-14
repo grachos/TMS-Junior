@@ -34,18 +34,20 @@ import ActividadPage from './pages/actividad/ActividadPage';
 import ImpuestosPage from './pages/impuestos/ImpuestosPage';
 
 /** Redirects home if the current user can't access `pagina` (admin always can). */
-function PageGuard({ pagina, adminOnly, children }: { pagina?: Pagina; adminOnly?: boolean; children: React.ReactNode }) {
+function PageGuard({ pagina, adminOnly, accion, children }: { pagina?: Pagina; adminOnly?: boolean; accion?: string; children: React.ReactNode }) {
   const canAccess = useAuthStore((s) => s.canAccess);
   const isAdmin = useAuthStore((s) => s.isAdmin());
+  const can = useAuthStore((s) => s.can);
+  if (accion && !can(accion)) return <Navigate to="/" replace />;
   if (adminOnly && !isAdmin) return <Navigate to="/" replace />;
   if (pagina && !canAccess(pagina)) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
-function Shell({ children, pagina, adminOnly }: { children: React.ReactNode; pagina?: Pagina; adminOnly?: boolean }) {
+function Shell({ children, pagina, adminOnly, accion }: { children: React.ReactNode; pagina?: Pagina; adminOnly?: boolean; accion?: string }) {
   return (
     <ProtectedRoute>
-      <PageGuard pagina={pagina} adminOnly={adminOnly}>
+      <PageGuard pagina={pagina} adminOnly={adminOnly} accion={accion}>
         <AppShell>{children}</AppShell>
       </PageGuard>
     </ProtectedRoute>
@@ -83,8 +85,8 @@ export default function App() {
       <Route path="/usuarios" element={<Shell adminOnly><UsuariosList /></Shell>} />
       <Route path="/usuarios/nuevo" element={<Shell adminOnly><UsuarioForm /></Shell>} />
       <Route path="/usuarios/:id/editar" element={<Shell adminOnly><UsuarioForm /></Shell>} />
-      <Route path="/actividad" element={<Shell adminOnly><ActividadPage /></Shell>} />
-      <Route path="/impuestos" element={<Shell adminOnly><ImpuestosPage /></Shell>} />
+      <Route path="/actividad" element={<Shell accion="actividad.ver"><ActividadPage /></Shell>} />
+      <Route path="/impuestos" element={<Shell accion="impuestos.gestionar"><ImpuestosPage /></Shell>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

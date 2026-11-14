@@ -51,6 +51,8 @@ interface NavItem {
   pagina?: Pagina;
   /** Only shown to rol='admin', regardless of paginas. */
   adminOnly?: boolean;
+  /** Shown to anyone allowed to run this action (admin always). */
+  accion?: string;
 }
 
 /** Polls a `{ pendientes }` count endpoint every BADGE_POLL_MS. */
@@ -95,8 +97,8 @@ const NAV: { section?: string; items: NavItem[] }[] = [
       { to: '/productos', label: 'Productos', icon: Package, pagina: 'productos' },
       { to: '/empresa', label: 'Empresa', icon: Building2, pagina: 'empresa' },
       { to: '/usuarios', label: 'Usuarios', icon: UsersRound, adminOnly: true },
-      { to: '/impuestos', label: 'Impuestos', icon: Percent, adminOnly: true },
-      { to: '/actividad', label: 'Actividad', icon: History, adminOnly: true },
+      { to: '/impuestos', label: 'Impuestos', icon: Percent, accion: 'impuestos.gestionar' },
+      { to: '/actividad', label: 'Actividad', icon: History, accion: 'actividad.ver' },
     ],
   },
 ];
@@ -165,7 +167,7 @@ function NotificationToggle() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const { user, canAccess, isAdmin } = useAuthStore();
+  const { user, canAccess, isAdmin, can } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [colaPendientes, setColaPendientes] = useState(0);
@@ -180,6 +182,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     ...group,
     items: group.items.filter((item) => {
       if (item.adminOnly) return isAdmin();
+      if (item.accion) return can(item.accion);
       if (item.pagina) return canAccess(item.pagina);
       return true;
     }),

@@ -10,6 +10,7 @@ import { Save, ArrowLeft, Loader2, CheckCircle2, Info } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { Alert } from '../../components/Alert';
 import { useEnvioUnico } from '../../lib/useEnvioUnico';
+import { useAuthStore } from '../../store/auth';
 
 type RemesaCumplido = Record<string, string>;
 
@@ -34,6 +35,7 @@ const remesaFields = (r: Record<string, any>): RemesaCumplido => ({
 });
 
 export default function CumplidoForm() {
+  const puedeGuardar = useAuthStore((s) => s.can('cumplido.guardar'));
   const { manifiestoId } = useParams();
   const navigate = useNavigate();
   const [manif, setManif] = useState<Record<string, any> | null>(null);
@@ -227,7 +229,8 @@ export default function CumplidoForm() {
         </fieldset>
 
         <div className="flex items-center gap-3">
-          <button type="submit" className="btn-primary" disabled={saving}>
+          <button type="submit" className="btn-primary" disabled={saving || !puedeGuardar}
+            title={puedeGuardar ? undefined : 'No tienes permiso para guardar cumplidos'}>
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             Guardar cumplido y encolar
           </button>

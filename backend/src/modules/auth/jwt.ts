@@ -5,6 +5,7 @@
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { config } from '../../config/env.js';
 import type { Rol, Pagina } from './auth.repo.js';
+import type { Accion } from './permisos.js';
 
 export interface JwtPayload {
   sub: number; // staff user id
@@ -13,6 +14,8 @@ export interface JwtPayload {
   rol: Rol;
   /** Allowed pages for rol='operador'; null = all. Ignored for 'admin'. */
   paginas: Pagina[] | null;
+  /** Acciones críticas (operador); null = valores por defecto. El servidor la relee de la base en cada petición. */
+  acciones?: Accion[] | null;
 }
 
 /** Signs an access token for a staff user. */

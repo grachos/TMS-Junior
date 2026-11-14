@@ -17,11 +17,18 @@ interface PaginaOpt {
   label: string;
 }
 
+interface AccionOpt {
+  clave: string;
+  label: string;
+  grupo: string;
+}
+
 interface FormState {
   nombre: string;
   email: string;
   rol: Rol;
   paginas: Pagina[];
+  acciones: string[];
   todasLasPaginas: boolean;
   activo: boolean;
   password: string;
@@ -32,6 +39,7 @@ const EMPTY: FormState = {
   email: '',
   rol: 'operador',
   paginas: [],
+  acciones: [],
   todasLasPaginas: true,
   activo: true,
   password: '',
@@ -44,6 +52,9 @@ export default function UsuarioForm() {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [opciones, setOpciones] = useState<PaginaOpt[]>([]);
+  const [catalogo, setCatalogo] = useState<AccionOpt[]>([]);
+  const [porDefecto, setPorDefecto] = useState<string[]>([]);
+  const [accionesCargadas, setAccionesCargadas] = useState(false);
   const [loading, setLoading] = useState(editar);
   const [saving, setSaving] = useState(false);
   // Synchronous guard: ignores a second submit fired before React re-renders.
@@ -55,7 +66,20 @@ export default function UsuarioForm() {
   }, []);
 
   useEffect(() => {
-    if (!editar) return;
+    void api<{ acciones: AccionOpt[]; porDefecto: string[] }>('/usuarios/acciones')
+      .then((r) => {
+        setCatalogo(r.acciones);
+        setPorDefecto(r.porDefecto);
+        // Usuario nuevo: arranca con lo que un operador ya podía hacer.
+        if (!editar) setForm((f) => ({ ...f, acciones: r.porDefecto }));
+      })
+      .catch(() => setCatalogo([]))
+      .finally(() => setAccionesCargadas(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!editar || !accionesCargadas) return;
     void (async () => {
       try {
         const u = await api<StaffUser>(`/usuarios/${id}`);
@@ -64,6 +88,7 @@ export default function UsuarioForm() {
           email: u.email,
           rol: u.rol,
           paginas: u.paginas ?? [],
+          acciones: u.acciones ?? porDefecto,
           todasLasPaginas: u.paginas === null,
           activo: Boolean(u.activo),
           password: '',
@@ -74,7 +99,7 @@ export default function UsuarioForm() {
         setLoading(false);
       }
     })();
-  }, [editar, id]);
+  }, [editar, id, accionesCargadas]);
 
   function upd<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -86,6 +111,18 @@ export default function UsuarioForm() {
       paginas: f.paginas.includes(p) ? f.paginas.filter((x) => x !== p) : [...f.paginas, p],
     }));
   }
+
+  function toggleAccion(clave: string) {
+    setForm((f) => ({
+      ...f,
+      acciones: f.acciones.includes(clave) ? f.acciones.filter((x) => x !== clave) : [...f.acciones, clave],
+    }));
+  }
+
+  const gruposAcciones = catalogo.reduce<Record<string, AccionOpt[]>>((acc, a) => {
+    (acc[a.grupo] ??= []).push(a);
+    return acc;
+  }, {});
 
   const esUnoMismo = editar && currentUserId === Number(id);
 
@@ -100,12 +137,16 @@ export default function UsuarioForm() {
     setSaving(true);
     try {
       const paginas = form.rol === 'admin' || form.todasLasPaginas ? null : form.paginas;
+      // Igual a los valores por defecto = null (así un cambio futuro de los valores por defecto aplica).
+      const iguales = form.acciones.length === porDefecto.length && form.acciones.every((a) => porDefecto.includes(a));
+      const acciones = form.rol === 'admin' || iguales ? null : form.acciones;
       if (editar) {
         const body: Record<string, unknown> = {
           nombre: form.nombre,
           email: form.email,
           rol: form.rol,
           paginas,
+          acciones,
           activo: form.activo,
         };
         if (form.password.trim()) body.password = form.password;
@@ -114,7 +155,7 @@ export default function UsuarioForm() {
       } else {
         await api('/usuarios', {
           method: 'POST',
-          body: { nombre: form.nombre, email: form.email, rol: form.rol, paginas, password: form.password },
+          body: { nombre: form.nombre, email: form.email, rol: form.rol, paginas, acciones, password: form.password },
         });
         navigate('/usuarios?ok=' + encodeURIComponent('Usuario creado.'));
       }
@@ -208,6 +249,32 @@ export default function UsuarioForm() {
                 ))}
               </div>
             )}
+          </fieldset>
+        )}
+
+        {form.rol === 'operador' && catalogo.length > 0 && (
+          <fieldset className="card">
+            <legend className="px-1 text-sm font-semibold text-celeste-700">Acciones críticas permitidas</legend>
+            <p className="mt-1 text-xs text-slate-500">
+              Marca lo que este usuario puede hacer con los botones de cada pantalla. Lo que no marques no podrá ejecutarlo (el servidor lo rechaza aunque
+              conozca la dirección). Las marcadas por defecto son lo que un operador ya podía hacer.
+            </p>
+            {Object.entries(gruposAcciones).map(([grupo, items]) => (
+              <div key={grupo} className="mt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{grupo}</p>
+                <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                  {items.map((a) => (
+                    <label key={a.clave} className="flex items-center gap-2 text-sm text-slate-600">
+                      <input type="checkbox" checked={form.acciones.includes(a.clave)} onChange={() => toggleAccion(a.clave)} />
+                      {a.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <button type="button" className="btn-ghost mt-3 text-xs" onClick={() => upd('acciones', porDefecto)}>
+              Restablecer valores por defecto
+            </button>
           </fieldset>
         )}
 

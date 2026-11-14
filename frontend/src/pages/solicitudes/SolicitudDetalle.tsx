@@ -11,6 +11,7 @@ import { api, ApiError, openAuthedFile } from '../../lib/api';
 import { Alert } from '../../components/Alert';
 import { StatusBadge } from '../../components/StatusBadge';
 import { money, NATURALEZAS, OPERACIONES } from '../../lib/format';
+import { useAuthStore } from '../../store/auth';
 
 interface Data {
   solicitud: Record<string, any>;
@@ -28,6 +29,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default function SolicitudDetalle() {
+  const puedeDespachar = useAuthStore((s) => s.can('solicitud.despachar'));
   const { id } = useParams();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -101,7 +103,7 @@ export default function SolicitudDetalle() {
               <Pencil size={16} /> Editar
             </Link>
           )}
-          {despachable && (
+          {despachable && puedeDespachar && (
             <Link to={`/solicitudes/${encodeURIComponent(id ?? '')}/despachar`} className="btn-primary">
               <Truck size={16} /> Confirmar despacho
             </Link>

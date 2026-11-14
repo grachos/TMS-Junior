@@ -15,6 +15,7 @@ import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
 import { requireRole } from '../auth/auth.middleware.js';
 import { withTransaction } from '../../db/pool.js';
 import { actorDe, auditar, cambios } from '../auditoria/auditoria.repo.js';
+import { ACCIONES, ACCIONES_DEF, ACCIONES_POR_DEFECTO } from '../auth/permisos.js';
 import { PAGINAS, type Pagina, createUser, updateUser, listUsers, emailExists, findById, toPublic } from '../auth/auth.repo.js';
 
 export const usuarioRouter = Router();
@@ -41,6 +42,14 @@ usuarioRouter.get(
   }),
 );
 
+/** Catálogo de acciones críticas (para los checkboxes) y cuáles tiene un operador sin configurar. */
+usuarioRouter.get(
+  '/acciones',
+  asyncHandler(async (_req, res) => {
+    res.json({ acciones: ACCIONES_DEF, porDefecto: ACCIONES_POR_DEFECTO });
+  }),
+);
+
 usuarioRouter.get(
   '/',
   asyncHandler(async (_req, res) => {
@@ -58,6 +67,7 @@ usuarioRouter.get(
 );
 
 const paginasSchema = z.array(z.enum(PAGINAS)).nullable();
+const accionesSchema = z.array(z.enum(ACCIONES)).nullable();
 
 const crearSchema = z.object({
   email: z.string().trim().email('Correo inválido.'),
@@ -65,6 +75,7 @@ const crearSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre es obligatorio.'),
   rol: z.enum(['admin', 'operador']),
   paginas: paginasSchema.optional(),
+  acciones: accionesSchema.optional(),
 });
 
 usuarioRouter.post(
@@ -72,13 +83,13 @@ usuarioRouter.post(
   asyncHandler(async (req, res) => {
     const parsed = crearSchema.safeParse(req.body);
     if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Datos inválidos.');
-    const { email, password, nombre, rol, paginas } = parsed.data;
+    const { email, password, nombre, rol, paginas, acciones } = parsed.data;
     if (await emailExists(email)) throw badRequest('Ya existe una cuenta con ese correo.');
     const passwordHash = await bcrypt.hash(password, 10);
     const id = await withTransaction(async (conn) => {
-      const nuevo = await createUser({ email, passwordHash, nombre, rol, paginas: paginas ?? null }, conn);
+      const nuevo = await createUser({ email, passwordHash, nombre, rol, paginas: paginas ?? null, acciones: acciones ?? null }, conn);
       await auditar(conn, actorDe(req), 'usuario.crear', 'usuario', nuevo, `Creó el usuario ${email} (${rol})`, {
-        email, nombre, rol, paginas: paginas ?? null,
+        email, nombre, rol, paginas: paginas ?? null, acciones: acciones ?? null,
       });
       return nuevo;
     });
@@ -91,6 +102,7 @@ const actualizarSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre es obligatorio.'),
   rol: z.enum(['admin', 'operador']),
   paginas: paginasSchema.optional(),
+  acciones: accionesSchema.optional(),
   activo: z.boolean(),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.').optional().or(z.literal('')),
 });
@@ -104,7 +116,7 @@ usuarioRouter.put(
 
     const parsed = actualizarSchema.safeParse(req.body);
     if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Datos inválidos.');
-    const { email, nombre, rol, paginas, activo, password } = parsed.data;
+    const { email, nombre, rol, paginas, acciones, activo, password } = parsed.data;
 
     // Guard rails so an admin can't lock themselves out from this same screen.
     if (req.user!.sub === id) {
@@ -118,10 +130,10 @@ usuarioRouter.put(
 
     const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
     await withTransaction(async (conn) => {
-      await updateUser(id, { email, nombre, rol, paginas: paginas ?? null, activo, passwordHash }, conn);
+      await updateUser(id, { email, nombre, rol, paginas: paginas ?? null, acciones, activo, passwordHash }, conn);
       const diff: Record<string, unknown> = cambios(
-        { email: existente.email, nombre: existente.nombre, rol: existente.rol, paginas: existente.paginas, activo: Number(existente.activo) },
-        { email: email.trim().toLowerCase(), nombre: nombre.trim(), rol, paginas: rol === 'admin' ? null : (paginas ?? null), activo: activo ? 1 : 0 },
+        { email: existente.email, nombre: existente.nombre, rol: existente.rol, paginas: existente.paginas, acciones: existente.acciones, activo: Number(existente.activo) },
+        { email: email.trim().toLowerCase(), nombre: nombre.trim(), rol, paginas: rol === 'admin' ? null : (paginas ?? null), acciones: rol === 'admin' ? null : acciones === undefined ? existente.acciones : acciones, activo: activo ? 1 : 0 },
       );
       if (passwordHash) diff.password = 'cambió';
       const resumen = Object.keys(diff).length ? Object.keys(diff).join(', ') : 'sin cambios';
