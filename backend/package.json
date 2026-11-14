@@ -5,7 +5,7 @@
   "description": "Light TMS - API backend (Node + Express + TypeScript + mysql2). Port of the PHP app.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -26,7 +26,7 @@
     "iconv-lite": "^0.6.3",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.11.5",
-    "puppeteer-core": "^23.11.1",
+    "puppeteer-core": "^25.17.0",
     "qrcode": "^1.5.4",
     "web-push": "^3.6.7",
     "zod": "^3.24.1"
