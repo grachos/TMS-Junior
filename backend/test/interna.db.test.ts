@@ -324,4 +324,32 @@ describe.skipIf(!RUN)('solicitudes internas: nada viaja al RNDC', () => {
     expect(fila).toBeDefined();
     expect(fila).toMatchObject({ interna: 'Sí', estado_manifiesto_rndc: 'interno' });
   });
+
+  it('un despacho interno ANULADO sigue siendo interno: el PDF lo dice, no tiene cumplido ni envío', async () => {
+    const id = await crearSolicitud(true);
+    await despachar(id);
+    const m = await manifiestoDe(id);
+    expect((await llamar('POST', `/api/despachos/${m.id}/anular`, { motivo: 'digitacion', observaciones: 'x' })).status).toBe(200);
+    expect((await manifiestoDe(id)).estado_rndc).toBe('anulado'); // ya no está en estado "interno"...
+
+    // ...pero su impreso no puede parecer oficial.
+    for (const ruta of ['manifiesto', 'remesa']) {
+      const html = await (await llamar('GET', `/api/${ruta}/${m.id}/pdf?format=html`)).text();
+      expect(html).toContain('DOCUMENTO INTERNO — NO RADICADO ANTE EL RNDC');
+    }
+    // El cumplido se rechaza con un 400 claro (no un 500) y no encola nada.
+    const [rem] = await remesasDe(id);
+    const cumplido = await llamar('POST', `/api/cumplido/${m.id}`, { cumplido_tipo: 'C', remesas: [{ id: rem!.id, cumplido_tipo: 'C', cantidad_entregada: 10 }] });
+    expect(cumplido.status).toBe(400);
+    expect(((await cumplido.json()) as { error: string }).error).toMatch(/interno/i);
+    // Procesar no envía nada y no habla de "pasos desde Cola".
+    const proc = (await (await llamar('POST', `/api/despachos/${m.id}/procesar`)).json()) as { ok: boolean; mensaje: string };
+    expect(proc).toMatchObject({ ok: false });
+    expect(proc.mensaje).toMatch(/interno/i);
+    // No se puede anular dos veces; el mensaje lo explica.
+    const preview = (await (await llamar('GET', `/api/despachos/${m.id}/anular`)).json()) as { puedeAnular: boolean; motivoBloqueo: string };
+    expect(preview.puedeAnular).toBe(false);
+    expect(preview.motivoBloqueo).toMatch(/interno.*anulado/i);
+    expect(await filasCola(id)).toBe(0);
+  });
 });

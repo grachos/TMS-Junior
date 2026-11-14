@@ -126,10 +126,20 @@ const TIPOS_DOCUMENTO_VALIDOS = new Set([
   'anular_cumplido_inicial_remesa', 'anular_manifiesto', 'anular_remesa',
 ]);
 
+/**
+ * True when the solicitud is internal (nothing of it goes to the RNDC). Reads the
+ * FLAG, never a document's state: an annulled internal manifiesto is 'anulado'
+ * and no longer 'interno', but it is still internal (it must still print as
+ * internal, never get a cumplido, never be sent).
+ */
+export async function solicitudEsInterna(exec: Queryable, solicitudId: number): Promise<boolean> {
+  const sol = await fila(exec, 'SELECT interna FROM solicitud_servicio WHERE id = ?', [solicitudId]);
+  return Number(sol?.interna ?? 0) === 1;
+}
+
 /** Throws if the solicitud is internal (nothing of it may be queued or sent to the RNDC). */
 async function asegurarNoInterna(exec: Queryable, solicitudId: number): Promise<void> {
-  const sol = await fila(exec, 'SELECT interna FROM solicitud_servicio WHERE id = ?', [solicitudId]);
-  if (Number(sol?.interna ?? 0) === 1) {
+  if (await solicitudEsInterna(exec, solicitudId)) {
     throw new Error('La solicitud es interna: ningún documento se envía al RNDC.');
   }
 }
@@ -388,7 +398,10 @@ export interface PreviewAnulacion {
 export async function previsualizarAnulacion(manifiestoId: number): Promise<PreviewAnulacion> {
   const datos = await manifiestoYRemesas(db(), manifiestoId);
   if (datos === null) return { puedeAnular: false, motivoBloqueo: 'Manifiesto no encontrado.', pasos: [] };
-  if (datos.manif.estado_rndc === 'interno') {
+  if (await solicitudEsInterna(db(), Number(datos.manif.solicitud_id))) {
+    if (datos.manif.estado_rndc !== 'interno') {
+      return { puedeAnular: false, motivoBloqueo: 'Este despacho interno ya fue anulado.', pasos: [] };
+    }
     return {
       puedeAnular: true,
       motivoBloqueo: null,
@@ -476,7 +489,8 @@ export async function encolarAnulacion(
   const datos = await manifiestoYRemesas(conn, manifiestoId);
   if (datos === null) throw new Error('Manifiesto no encontrado.');
   const { manif, remesas } = datos;
-  if (manif.estado_rndc === 'interno') {
+  if (await solicitudEsInterna(conn, Number(manif.solicitud_id))) {
+    if (manif.estado_rndc !== 'interno') throw new Error('Este despacho interno ya fue anulado.');
     await anularInterno(conn, manif, reason, observaciones, anuladoPor, actor);
     return;
   }
@@ -765,8 +779,7 @@ async function reclamarFila(id: number, estados: string[], respetarProgramacion 
 async function enviarFila(rndc: RndcClient, row: Row): Promise<RndcRespuesta> {
   // Second barrier: if a row of an internal solicitud ever reached the queue, it
   // is NOT sent (it stays failing and visible in Cola instead).
-  const sol = await fila(db(), 'SELECT interna FROM solicitud_servicio WHERE id = ?', [Number(row.solicitud_id)]);
-  if (Number(sol?.interna ?? 0) === 1) {
+  if (await solicitudEsInterna(db(), Number(row.solicitud_id))) {
     return RndcRespuesta.fallo('Solicitud interna: ningún documento se envía al RNDC.', 0, '');
   }
   switch (row.tipo_documento) {
@@ -1538,8 +1551,8 @@ export async function procesarItem(colaId: number): Promise<ItemResult> {
 
 /** Processes the queue items of a single dispatch. Port of procesarDespacho(). */
 export async function procesarDespacho(manifiestoId: number): Promise<ItemResult> {
-  const manif = await fila(db(), 'SELECT estado_rndc FROM manifiesto WHERE id = ?', [manifiestoId]);
-  if (manif?.estado_rndc === 'interno') {
+  const manif = await fila(db(), 'SELECT estado_rndc, solicitud_id FROM manifiesto WHERE id = ?', [manifiestoId]);
+  if (manif && (await solicitudEsInterna(db(), Number(manif.solicitud_id)))) {
     return { ok: false, mensaje: 'Este despacho es interno: no se envía al RNDC.' };
   }
   if (manif?.estado_rndc === 'anulacion_pendiente' || manif?.estado_rndc === 'anulado') {

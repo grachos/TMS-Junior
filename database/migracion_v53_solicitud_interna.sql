@@ -17,6 +17,13 @@
 --     tiene huecos. Viven en la misma fila de maestro_empresa y reutilizan su
 --     bloqueo.
 --
+-- ANTES DE CORRERLA (en cada base), revisa que no haya estados fuera de la lista:
+--     SELECT estado_rndc, COUNT(*) FROM manifiesto GROUP BY estado_rndc;
+--     SELECT estado_rndc, COUNT(*) FROM remesa GROUP BY estado_rndc;
+-- Solo deben aparecer: pendiente, enviado, aceptado, rechazado,
+-- anulacion_pendiente, anulado. Un valor vacío ('') o desconocido (resto del
+-- error que corrigió v44) haría fallar el cambio de ENUM en modo estricto.
+--
 -- Repetible: ADD COLUMN IF NOT EXISTS y MODIFY a la misma definición.
 
 ALTER TABLE solicitud_servicio

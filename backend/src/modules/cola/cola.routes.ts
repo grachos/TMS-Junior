@@ -306,8 +306,12 @@ cumplidoRouter.post(
       // remesa id in the body was updated and queued, even another dispatch's.
       if (!(await cola.bloquearManifiesto(conn, manifiestoId))) throw notFound('Manifiesto no encontrado.');
       // A dispatch of an internal solicitud never goes to the RNDC, so it has no cumplido there.
-      const [[estadoManif]] = await conn.query<RowDataPacket[]>('SELECT estado_rndc FROM manifiesto WHERE id = ?', [manifiestoId]);
-      if (estadoManif?.estado_rndc === 'interno') {
+      // (Reads the solicitud's flag, not the manifiesto's state: an annulled internal one is 'anulado'.)
+      const [[origen]] = await conn.query<RowDataPacket[]>(
+        'SELECT s.interna FROM manifiesto m JOIN solicitud_servicio s ON s.id = m.solicitud_id WHERE m.id = ?',
+        [manifiestoId],
+      );
+      if (Number(origen?.interna ?? 0) === 1) {
         throw badRequest('Este despacho es interno: no se envía al RNDC y no tiene cumplido allí.');
       }
       const [propias] = await conn.query<RowDataPacket[]>(

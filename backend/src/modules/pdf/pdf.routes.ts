@@ -167,7 +167,7 @@ pdfManifiestoRouter.get(
     }
 
     const html = renderManifiestoHtml({
-      interno: m.estado_rndc === 'interno',
+      interno: Number(s.interna ?? 0) === 1, // the flag: an annulled internal manifiesto must still print as internal
       m,
       remesas,
       solicitud: s,
@@ -205,9 +205,12 @@ pdfManifiestoRouter.get(
   '/:id/pdf-rndc',
   asyncHandler(async (req, res) => {
     const manifiestoId = Number(req.params.id);
-    const m = await one('SELECT id, num_manifiesto, rndc_ingreso_id, estado_rndc FROM manifiesto WHERE id = ?', [manifiestoId]);
+    const m = await one(
+      'SELECT m.id, m.num_manifiesto, m.rndc_ingreso_id, s.interna FROM manifiesto m JOIN solicitud_servicio s ON s.id = m.solicitud_id WHERE m.id = ?',
+      [manifiestoId],
+    );
     if (!m) throw notFound('Manifiesto no encontrado.');
-    if (m.estado_rndc === 'interno') {
+    if (Number(m.interna ?? 0) === 1) {
       throw badRequest('Este manifiesto es interno: no se radica en el RNDC, así que no existe un PDF del RNDC.');
     }
     if (!m.rndc_ingreso_id) {
@@ -274,7 +277,7 @@ pdfRemesaRouter.get(
     }
 
     const html = renderRemesaHtml({
-      interno: remesas[0]!.estado_rndc === 'interno',
+      interno: Number(s.interna ?? 0) === 1,
       remesas,
       solicitud: s,
       empresa,
