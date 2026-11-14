@@ -31,6 +31,7 @@ import InformePage from './pages/informe/InformePage';
 import UsuariosList from './pages/usuarios/UsuariosList';
 import UsuarioForm from './pages/usuarios/UsuarioForm';
 import ActividadPage from './pages/actividad/ActividadPage';
+import ImpuestosPage from './pages/impuestos/ImpuestosPage';
 
 /** Redirects home if the current user can't access `pagina` (admin always can). */
 function PageGuard({ pagina, adminOnly, children }: { pagina?: Pagina; adminOnly?: boolean; children: React.ReactNode }) {
@@ -83,6 +84,7 @@ export default function App() {
       <Route path="/usuarios/nuevo" element={<Shell adminOnly><UsuarioForm /></Shell>} />
       <Route path="/usuarios/:id/editar" element={<Shell adminOnly><UsuarioForm /></Shell>} />
       <Route path="/actividad" element={<Shell adminOnly><ActividadPage /></Shell>} />
+      <Route path="/impuestos" element={<Shell adminOnly><ImpuestosPage /></Shell>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
