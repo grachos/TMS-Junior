@@ -9,6 +9,47 @@ Repo: <https://github.com/grachos/TMS-TechCol> (rama `main`).
 
 ---
 
+## Sitios y ramas: prueba primero, producción después
+
+Un mismo repositorio alimenta **varios sitios**, cada uno con **su propia base de
+datos** y sus propias variables de entorno:
+
+| Sitio | Papel | Despliega desde | Base de datos |
+|---|---|---|---|
+| `tmslight.techcol-service.cc` | **Prueba** | rama `main` (cada PR fusionado) | `u279856486_tms_light_new` |
+| `trading-solucion.konekto.site` | **Producción** | rama `produccion` | `u279856486_trading` |
+| *(futuros sitios de producción)* | Producción | rama `produccion` | una base nueva por sitio |
+
+**Flujo de una versión:**
+
+1. Se fusiona el PR a `main` → solo el sitio de **prueba** se despliega.
+2. Si la versión trae migraciones nuevas, se corren primero en la base de **prueba**.
+3. Se revisa el cambio en el sitio de prueba.
+4. **Liberar:** se adelanta `produccion` al mismo commit ya probado
+   (`git push origin <commit>:produccion`, siempre avance rápido, nunca código
+   que no pasó por prueba) → todos los sitios de producción se despliegan.
+5. Las mismas migraciones se corren en **cada** base de producción.
+
+**Sitio de prueba:** `RNDC_AMBIENTE=pruebas`, para que nada de lo que se haga
+ahí se radique ante el Ministerio.
+
+**Agregar un sitio de producción nuevo:**
+
+1. hPanel: crear el sitio Node.js y **una base de datos nueva** para él.
+2. Variables de entorno (sección 3): `DB_*` de **su** base, un `JWT_SECRET`
+   **propio** (si dos sitios comparten secreto, un token de uno sirve en el
+   otro), `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` del administrador de esa
+   empresa y `RNDC_*` / `COLA_*` de esa empresa.
+3. phpMyAdmin: importar en esa base los archivos de la sección 1, en orden,
+   terminando con `productos.sql`.
+4. Configuración de compilación igual a la de los demás sitios: punto de
+   entrada `backend/dist/server.js`, salida `backend/dist`, script `build`.
+5. Conectar el despliegue a la rama **`produccion`** (no `main`). El primer
+   arranque crea el administrador (sección 4).
+6. Cron del worker para ese sitio (sección 5).
+
+---
+
 ## 0. Verifica que tu plan de Hostinger soporte Node.js
 
 hPanel → busca la sección **"Node.js"** (bajo "Avanzado" o "Sitio web"). Está
@@ -70,6 +111,8 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v46_contenedor_serial.sql
    migracion_v47_unique_consecutivos.sql   ← NUEVO — llave única de No. manifiesto/remesa (ver nota)
    migracion_v48_login_intentos.sql   ← NUEVO — límite de intentos de login (5 fallos / 15 min)
+   migracion_v49_producto_columnas.sql   ← NUEVO — amplía columnas de producto para el catálogo RNDC
+   productos.sql   ← SIEMPRE AL FINAL: catálogo de productos (solo carga si la tabla está vacía)
    ```
 
    > **v43 y v44 corrigen corrupción silenciosa de datos, no son solo ajustes
@@ -84,6 +127,13 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    > estado real. Ejecútalas en orden (v43 antes que v44) antes de seguir
    > anulando.
    >
+   > **Instalación nueva:** `migracion_v21.sql` falla con "Unknown column
+   > 'cantidad_cargada'" porque `schema.sql` ya trae ese cambio. Es esperado:
+   > sigue con v22. `productos.sql` carga los 3.758 productos del catálogo oficial
+   > del RNDC; se genera desde `catalogo_productos.csv` con
+   > `node database/generar_productos_sql.mjs` (reemplaza a
+   > `importar_productos_csv.php`). En una base que ya tiene productos no cambia nada.
+
    > **v47** agrega una llave única a `manifiesto.num_manifiesto` y
    > `remesa.num_remesa`. Es repetible y no falla con datos existentes: si ya hay
    > números repetidos, no crea esa llave y la última consulta los lista (tabla,
@@ -226,18 +276,30 @@ Finaliza/guarda y lanza el deploy (o "Redesplegar" si ya existía).
 
 ## 4. Primer arranque: crear el admin
 
-Una vez el deploy termina en verde, necesitas correr `seed:admin` una vez.
-Si el panel te da una terminal (revisa si hay un botón de shell/consola en
-la pantalla de la app, o **Avanzado → SSH Access** en hPanel clásico):
+En una instalación nueva (tabla `staff_users` vacía) el primer administrador
+se crea **solo, al arrancar la app**, con estas variables de entorno:
+
+```
+SEED_ADMIN_EMAIL=admin@tudominio.com
+SEED_ADMIN_PASSWORD=<al menos 12 caracteres>
+SEED_ADMIN_NOMBRE=Admin            # opcional
+```
+
+- Solo actúa si **no hay ningún usuario**: en los reinicios siguientes no hace
+  nada, y nunca cambia ni reactiva a un usuario existente.
+- El log de arranque dice `[auth] Se creó el primer administrador (...)`. Si
+  falta algo, lo explica ahí mismo (variables vacías, contraseña corta, o
+  falta importar `schema.sql`); la API arranca igual.
+- Después de entrar: cambia la contraseña en **Usuarios** y borra
+  `SEED_ADMIN_PASSWORD` de las variables de entorno.
+
+Si tienes terminal (SSH), también sigue disponible el script, que además
+sirve para restablecer la contraseña de un admin existente:
 
 ```bash
 cd <ruta-de-tu-app>          # la misma que "Directorio raíz" del deploy
 npm --prefix backend run seed:admin -- --email admin@tudominio.com --password "CAMBIA-ESTO" --nombre "Admin"
 ```
-
-Si no tienes shell, dilo — hay una alternativa (endpoint temporal o
-`INSERT` directo por phpMyAdmin con un hash bcrypt) pero preferí siempre
-la vía del script porque hashea la contraseña correctamente.
 
 Prueba:
 - `https://<tu-dominio-asignado>/api/health` → `{"ok":true,"database":{"ok":true}}`
@@ -310,7 +372,7 @@ Verificación: al entrar a la app aparece un botón de chat abajo a la derecha;
 
 - [ ] `GET /api/health` responde `{"ok":true,"database":{"ok":true}}`.
 - [ ] `/` sirve la pantalla de login de React (no "Cannot GET /").
-- [ ] Login con el usuario creado por `seed:admin` funciona.
+- [ ] Login con el primer administrador (creado al arrancar o con `seed:admin`) funciona.
 - [ ] `COLA_ENVIO_HABILITADO=false` mientras pruebas — la cola arma y
       previsualiza el XML pero no envía nada real al RNDC.
 - [ ] `RNDC_AMBIENTE=pruebas` hasta confirmar que todo el flujo (solicitud →
