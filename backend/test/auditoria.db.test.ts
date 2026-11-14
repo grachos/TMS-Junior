@@ -11,6 +11,7 @@
  * Sin TEST_DB=1 se omite. NUNCA apuntar a producción.
  */
 
+import { randomBytes } from 'node:crypto';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -25,6 +26,8 @@ const { db } = await import('../src/db/pool.js');
 let server: Server;
 let base = '';
 const sufijo = `${Date.now() % 1_000_000}`;
+// Generated per run: never write test passwords literally.
+const claveNueva = `k-${randomBytes(9).toString('hex')}`;
 const usuarios: number[] = [];
 const solicitudes: number[] = [];
 let empresaOriginal: RowDataPacket | null = null;
@@ -128,7 +131,7 @@ describe.skipIf(!RUN)('bitácora de auditoría', () => {
   it('cambiar el rol y la contraseña de un usuario guarda antes/después, nunca la contraseña', async () => {
     const otro = await crearUsuario('auditobjetivo', 'admin');
     const r = await llamar('PUT', `/api/usuarios/${otro.id}`, admin.token, {
-      email: otro.email, nombre: 'auditobjetivo', rol: 'operador', paginas: ['cola'], activo: false, password: 'NuevaClaveSegura123',
+      email: otro.email, nombre: 'auditobjetivo', rol: 'operador', paginas: ['cola'], activo: false, password: claveNueva,
     });
     expect(r.status).toBe(200);
     const [reg] = await registros('usuario.actualizar', otro.id);
@@ -137,7 +140,7 @@ describe.skipIf(!RUN)('bitácora de auditoría', () => {
     expect(det.cambios.rol).toEqual({ antes: 'admin', despues: 'operador' });
     expect(det.cambios.activo).toEqual({ antes: 1, despues: 0 });
     expect(det.cambios.password).toBe('cambió');
-    expect(String(reg!.detalle)).not.toContain('NuevaClaveSegura123');
+    expect(String(reg!.detalle)).not.toContain(claveNueva);
     expect(String(reg!.detalle)).not.toMatch(/\$2[aby]\$/); // ningún hash bcrypt
   });
 

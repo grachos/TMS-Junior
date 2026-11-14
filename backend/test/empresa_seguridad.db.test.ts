@@ -13,6 +13,7 @@
  * Sin TEST_DB=1 se omite. NUNCA apuntar a producción.
  */
 
+import { randomBytes } from 'node:crypto';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -27,6 +28,9 @@ const { db } = await import('../src/db/pool.js');
 let server: Server;
 let base = '';
 const sufijo = `${Date.now() % 1_000_000}`;
+// Generated per run: never write test passwords literally.
+const claveInicial = `k-${randomBytes(9).toString('hex')}`;
+const claveNueva = `k-${randomBytes(9).toString('hex')}`;
 const usuarios: number[] = [];
 const solicitudes: number[] = [];
 let original: RowDataPacket;
@@ -86,7 +90,8 @@ describe.skipIf(!RUN)('página Empresa: clave RNDC y consecutivos', () => {
     tokenOperador = await usuario('empop', 'operador');
     original = await enDb();
     await db().query(
-      "UPDATE maestro_empresa SET nit = '900123456', rndc_password = 'ClaveSecreta-Original', consecutivo_manifiesto = 'MAN-00300', consecutivo_remesa = 'REM-00300' WHERE id = 1",
+      "UPDATE maestro_empresa SET nit = '900123456', rndc_password = ?, consecutivo_manifiesto = 'MAN-00300', consecutivo_remesa = 'REM-00300' WHERE id = 1",
+      [claveInicial],
     );
   });
 
@@ -114,7 +119,7 @@ describe.skipIf(!RUN)('página Empresa: clave RNDC y consecutivos', () => {
     for (const token of [tokenOperador, tokenAdmin]) {
       const e = (await (await llamar('GET', '/api/empresa', token)).json()) as Record<string, unknown>;
       expect(e).not.toHaveProperty('rndc_password');
-      expect(JSON.stringify(e)).not.toContain('ClaveSecreta-Original');
+      expect(JSON.stringify(e)).not.toContain(claveInicial);
       expect(e.rndc_password_configurada).toBe(true);
     }
   });
@@ -122,9 +127,9 @@ describe.skipIf(!RUN)('página Empresa: clave RNDC y consecutivos', () => {
   it('guardar con la clave vacía la conserva; escribir una nueva la cambia', async () => {
     const f = await formulario();
     expect((await llamar('PUT', '/api/empresa', tokenAdmin, { ...f, telefono: '6011234567', rndc_password: '' })).status).toBe(200);
-    expect((await enDb()).rndc_password).toBe('ClaveSecreta-Original');
-    expect((await llamar('PUT', '/api/empresa', tokenAdmin, { ...(await formulario()), rndc_password: 'ClaveNueva-2' })).status).toBe(200);
-    expect((await enDb()).rndc_password).toBe('ClaveNueva-2');
+    expect((await enDb()).rndc_password).toBe(claveInicial);
+    expect((await llamar('PUT', '/api/empresa', tokenAdmin, { ...(await formulario()), rndc_password: claveNueva })).status).toBe(200);
+    expect((await enDb()).rndc_password).toBe(claveNueva);
   });
 
   it('un formulario abierto antes de un despacho no devuelve el consecutivo atrás al guardar', async () => {

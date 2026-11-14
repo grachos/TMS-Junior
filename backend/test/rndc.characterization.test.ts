@@ -54,13 +54,32 @@ describe('RndcClient parity with PHP', () => {
     expect(base64).toBe(fixtures.sobreSoapIso88591Base64!.output);
   });
 
-  it('previewXmlInterno (nested variables) matches byte-for-byte, plus <ambiente> for manifiesto', () => {
+  it('previewXmlInterno (nested variables) matches byte-for-byte, plus <ambiente> for manifiesto, password masked', () => {
     // The fixture's expected output was hand-adjusted to add <ambiente>R</ambiente>
     // inside <acceso> — a Node-only requirement for manifiesto (procesoid 4)
     // payloads that doesn't exist in the legacy PHP this fixture came from.
+    // The preview masks the password (it reaches "Ver XML" and the DB); the
+    // real request is checked byte-for-byte in the next test.
     const f = fixtures.previewXmlInterno!;
     const out = rndc.previewXmlInterno(f.input.procesoid as number, f.input.variablesXml as string);
-    expect(out).toBe(f.output);
+    expect(out).toBe(RndcClient.enmascararClave(f.output));
+  });
+
+  it('the real request (ingresarXml) sends the fixture XML byte-for-byte, real password included', async () => {
+    const f = fixtures.previewXmlInterno!;
+    let enviado: Buffer | null = null;
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (_url: string, init: { body: Buffer }) => {
+      enviado = Buffer.from(init.body);
+      return new Response('<return>&lt;root&gt;&lt;ingresoid&gt;1&lt;/ingresoid&gt;&lt;/root&gt;</return>', { status: 200 });
+    }) as unknown as typeof fetch;
+    try {
+      await rndc.ingresarXml(f.input.procesoid as number, f.input.variablesXml as string);
+    } finally {
+      globalThis.fetch = original;
+    }
+    const esperado = iconv.encode(rndc.construirSobreSoap(f.output), 'ISO-8859-1');
+    expect(enviado!.toString('base64')).toBe(esperado.toString('base64'));
   });
 
   it('renderVariables matches byte-for-byte', () => {
