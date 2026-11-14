@@ -15,6 +15,9 @@ export type Pagina =
   | 'solicitudes' | 'despachos' | 'cola' | 'cumplido' | 'informe'
   | 'terceros' | 'vehiculos' | 'productos' | 'empresa';
 
+/** Acciones críticas (mirror de backend permisos.ts; el servidor decide, esto solo muestra u oculta botones). */
+export type Accion = string;
+
 export interface StaffUser {
   id: number;
   email: string;
@@ -22,6 +25,10 @@ export interface StaffUser {
   rol: Rol;
   /** Allowed pages for rol='operador'; null = all (backward compatible). Ignored for 'admin'. */
   paginas: Pagina[] | null;
+  /** Acciones guardadas para el operador (null = valores por defecto). Solo la usa la pantalla de Usuarios. */
+  acciones?: Accion[] | null;
+  /** Acciones que puede ejecutar hoy, ya resueltas por el servidor. */
+  permisos?: Accion[];
   activo: 0 | 1;
   created_at: string;
 }
@@ -36,6 +43,8 @@ interface AuthState {
   logout: (byInactivity?: boolean) => void;
   isAdmin: () => boolean;
   canAccess: (pagina: Pagina) => boolean;
+  /** ¿Puede ejecutar esta acción crítica? */
+  can: (accion: Accion) => boolean;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -48,6 +57,12 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user }),
       logout: (byInactivity = false) => set({ token: null, user: null, expired: byInactivity }),
       isAdmin: () => get().user?.rol === 'admin',
+      can: (accion) => {
+        const u = get().user;
+        if (!u) return false;
+        if (u.rol === 'admin') return true;
+        return (u.permisos ?? []).includes(accion);
+      },
       canAccess: (pagina) => {
         const u = get().user;
         if (!u) return false;

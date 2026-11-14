@@ -24,7 +24,7 @@
 
 import { Router } from 'express';
 import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
-import { requireRole, requirePagina } from '../auth/auth.middleware.js';
+import { requirePagina, requireAccion } from '../auth/auth.middleware.js';
 import { config } from '../../config/env.js';
 import { db, withTransaction } from '../../db/pool.js';
 import type { RowDataPacket } from 'mysql2';
@@ -63,7 +63,7 @@ colaRouter.get(
 
 colaRouter.post(
   '/procesar',
-  requireRole('admin'),
+  requireAccion('cola.procesar'),
   asyncHandler(async (req, res) => {
     const r = await cola.drenar();
     const modo = config().cola.envioHabilitado ? 'envío real' : 'modo seguro';
@@ -79,7 +79,7 @@ colaRouter.post(
 
 colaRouter.post(
   '/:id/procesar',
-  requireRole('admin'),
+  requireAccion('cola.procesar'),
   asyncHandler(async (req, res) => {
     // Always 200: { ok, mensaje } describes a normal processing outcome (success
     // or a rejected RNDC send), not an HTTP-level error — the frontend reads
@@ -98,7 +98,7 @@ colaRouter.post(
  */
 colaRouter.post(
   '/:id/cancelar',
-  requireRole('admin'),
+  requireAccion('cola.cancelar'),
   asyncHandler(async (req, res) => {
     res.json(await cola.cancelarItem(Number(req.params.id), actorDe(req)));
   }),
@@ -119,7 +119,7 @@ colaRouter.get(
  */
 colaRouter.get(
   '/:id/anular',
-  requireRole('admin'),
+  requireAccion('cola.anular'),
   asyncHandler(async (req, res) => {
     res.json(await cola.previsualizarAnulacionIndividual(Number(req.params.id)));
   }),
@@ -128,7 +128,7 @@ colaRouter.get(
 /** POST /api/cola/:id/anular — encola la anulación individual de esta fila. */
 colaRouter.post(
   '/:id/anular',
-  requireRole('admin'),
+  requireAccion('cola.anular'),
   asyncHandler(async (req, res) => {
     const { motivo, observaciones } = req.body ?? {};
     if (!MOTIVOS_ANULACION.includes(motivo)) {
@@ -186,6 +186,7 @@ despachoRouter.get(
 /** PUT /api/despachos/:manifiestoId — edit a confirmed despacho, before the RNDC accepts it. */
 despachoRouter.put(
   '/:manifiestoId',
+  requireAccion('despacho.editar'),
   asyncHandler(async (req, res) => {
     res.json(await cola.actualizarDespacho(Number(req.params.manifiestoId), req.body ?? {}, actorDe(req)));
   }),
@@ -193,7 +194,7 @@ despachoRouter.put(
 
 despachoRouter.post(
   '/:manifiestoId/procesar',
-  requireRole('admin'),
+  requireAccion('despacho.enviar'),
   asyncHandler(async (req, res) => {
     // Always 200 — see the note on POST /cola/:id/procesar above.
     const manifiestoId = Number(req.params.manifiestoId);
@@ -211,7 +212,7 @@ despachoRouter.post(
  */
 despachoRouter.post(
   '/:manifiestoId/consultar-qr',
-  requireRole('admin'),
+  requireAccion('despacho.consultar_qr'),
   asyncHandler(async (req, res) => {
     res.json(await cola.consultarSeguridadQr(Number(req.params.manifiestoId)));
   }),
@@ -224,7 +225,7 @@ despachoRouter.post(
  */
 despachoRouter.get(
   '/:manifiestoId/anular',
-  requireRole('admin'),
+  requireAccion('despacho.anular'),
   asyncHandler(async (req, res) => {
     res.json(await cola.previsualizarAnulacion(Number(req.params.manifiestoId)));
   }),
@@ -237,7 +238,7 @@ despachoRouter.get(
  */
 despachoRouter.post(
   '/:manifiestoId/anular',
-  requireRole('admin'),
+  requireAccion('despacho.anular'),
   asyncHandler(async (req, res) => {
     const manifiestoId = Number(req.params.manifiestoId);
     const { motivo, observaciones } = req.body ?? {};
@@ -295,6 +296,7 @@ cumplidoRouter.get(
 /** POST /api/cumplido/:manifiestoId — save cumplido on manifiesto + remesas, enqueue. */
 cumplidoRouter.post(
   '/:manifiestoId',
+  requireAccion('cumplido.guardar'),
   asyncHandler(async (req, res) => {
     const manifiestoId = Number(req.params.manifiestoId);
     if (!manifiestoId) throw badRequest('Falta manifiesto_id.');

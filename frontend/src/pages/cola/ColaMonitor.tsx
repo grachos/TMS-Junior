@@ -71,7 +71,7 @@ const CAT_STYLE: Record<string, string> = {
 const RESUMEN = ['pendiente', 'enviando', 'enviado', 'error'] as const;
 
 export default function ColaMonitor() {
-  const isAdmin = useAuthStore((s) => s.isAdmin());
+  const can = useAuthStore((s) => s.can);
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState<ColaResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -203,7 +203,7 @@ export default function ColaMonitor() {
         <h1 className="flex items-center gap-2 text-xl font-semibold text-slate-800">
           <Send size={22} className="text-celeste-600" /> Cola de envíos al RNDC
         </h1>
-        {isAdmin && (
+        {can('cola.procesar') && (
           <button className="btn-primary" onClick={procesarAhora} disabled={procesando}>
             {procesando ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} Procesar ahora
           </button>
@@ -293,12 +293,12 @@ export default function ColaMonitor() {
                         <button className="btn-ghost px-2 py-1" title="Ver XML" onClick={() => verXml(f.id)}>
                           <FileCode size={15} />
                         </button>
-                        {isAdmin && ['pendiente', 'error'].includes(f.estado) && (
+                        {can('cola.procesar') && ['pendiente', 'error'].includes(f.estado) && (
                           <button className="btn-ghost px-2 py-1" title="Procesar" onClick={() => procesarItem(f.id)}>
                             <Send size={15} />
                           </button>
                         )}
-                        {isAdmin && ['pendiente', 'error'].includes(f.estado) && (
+                        {can('cola.cancelar') && ['pendiente', 'error'].includes(f.estado) && (
                           <button
                             className="btn-ghost px-2 py-1 text-slate-500"
                             title="Cancelar (todavía no se envió al RNDC)"
@@ -307,7 +307,7 @@ export default function ColaMonitor() {
                             <XCircle size={15} />
                           </button>
                         )}
-                        {isAdmin && f.estado === 'enviado' && ANULABLES.has(f.tipo_documento) && f.estado_origen === 'aceptado' && (
+                        {can('cola.anular') && f.estado === 'enviado' && ANULABLES.has(f.tipo_documento) && f.estado_origen === 'aceptado' && (
                           <button
                             className="btn-ghost px-2 py-1 text-red-600"
                             title="Anular este documento"

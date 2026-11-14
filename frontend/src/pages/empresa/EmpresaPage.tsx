@@ -35,7 +35,7 @@ interface Empresa {
 }
 
 export default function EmpresaPage() {
-  const isAdmin = useAuthStore((s) => s.isAdmin());
+  const isAdmin = useAuthStore((s) => s.can('empresa.editar'));
   const [form, setForm] = useState<Empresa | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -114,7 +114,7 @@ export default function EmpresaPage() {
 
       {flash && <Alert kind={flash.kind} message={flash.message} onClose={() => setFlash(null)} />}
       {!isAdmin && (
-        <Alert kind="err" message="Solo un administrador puede modificar estos datos." />
+        <Alert kind="err" message="No tienes permiso para modificar estos datos." />
       )}
 
       <form onSubmit={onSubmit}>

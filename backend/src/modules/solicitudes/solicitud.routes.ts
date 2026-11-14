@@ -10,11 +10,17 @@
 import { Router } from 'express';
 import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
 import { validarProductoPeligrosa, validarContenedorSerial } from '../../util/validaciones.js';
-import { requirePagina } from '../auth/auth.middleware.js';
+import { requirePagina, requireAccion } from '../auth/auth.middleware.js';
 import * as repo from './solicitud.repo.js';
+import { tieneAccion } from '../auth/permisos.js';
+import { forbidden } from '../../http/errors.js';
 import { actorDe } from '../auditoria/auditoria.repo.js';
 
 export const solicitudRouter = Router();
+
+/** Mismo criterio que el repo: '', 0, '0' y false son "no interna". */
+const esInterna = (v: unknown) => v === true || v === 1 || v === '1' || v === 'true' || v === 'on';
+const sinPermisoInterna = () => forbidden('No tienes permiso para marcar o desmarcar solicitudes como Internas.');
 solicitudRouter.use(requirePagina('solicitudes'));
 
 solicitudRouter.get(
@@ -53,6 +59,8 @@ solicitudRouter.post(
       String(req.body?.contenedor_serial ?? ''),
     );
     if (errContenedor) throw badRequest(errContenedor);
+    // Marcar una solicitud como Interna (nada viaja al RNDC) es una acción configurable.
+    if (esInterna(req.body?.interna) && !tieneAccion(req.user!, 'solicitud.interna')) throw sinPermisoInterna();
     const id = await repo.crear(req.body ?? {}, actorDe(req));
     res.status(201).json({ id });
   }),
@@ -77,6 +85,14 @@ solicitudRouter.put(
       String(req.body?.contenedor_serial ?? ''),
     );
     if (errContenedor) throw badRequest(errContenedor);
+    // Solo cuenta si CAMBIA la marca: guardar una solicitud sin tocarla sigue permitido.
+    if (
+      req.body?.interna !== undefined &&
+      esInterna(req.body.interna) !== (Number(data.solicitud.interna ?? 0) === 1) &&
+      !tieneAccion(req.user!, 'solicitud.interna')
+    ) {
+      throw sinPermisoInterna();
+    }
     await repo.actualizar(id, req.body ?? {}, actorDe(req));
     res.json({ ok: true });
   }),
@@ -85,6 +101,7 @@ solicitudRouter.put(
 /** POST /api/solicitudes/:id/despachar — confirm dispatch (enqueues, no live send). */
 solicitudRouter.post(
   '/:id/despachar',
+  requireAccion('solicitud.despachar'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     if (!req.body?.placa_vehiculo || !req.body?.conductor_num_id) {

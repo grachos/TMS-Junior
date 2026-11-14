@@ -26,7 +26,7 @@ interface PreviewAnulacion {
 }
 
 export default function DespachosList() {
-  const isAdmin = useAuthStore((s) => s.isAdmin());
+  const can = useAuthStore((s) => s.can);
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState<PagedResponse<Row> | null>(null);
@@ -237,7 +237,8 @@ export default function DespachosList() {
                           </button>
                         </>
                       )}
-                      {d.manifiesto_id &&
+                      {can('despacho.editar') &&
+                        d.manifiesto_id &&
                         d.estado_manifiesto !== 'aceptado' &&
                         d.estado_manifiesto !== 'anulacion_pendiente' &&
                         d.estado_manifiesto !== 'anulado' && (
@@ -249,7 +250,7 @@ export default function DespachosList() {
                             <Pencil size={15} />
                           </button>
                         )}
-                      {isAdmin &&
+                      {can('despacho.enviar') &&
                         d.manifiesto_id &&
                         d.estado_manifiesto !== 'anulacion_pendiente' &&
                         d.estado_manifiesto !== 'anulado' &&
@@ -263,7 +264,7 @@ export default function DespachosList() {
                             {sending === d.manifiesto_id ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
                           </button>
                         )}
-                      {isAdmin && d.manifiesto_id && d.estado_manifiesto === 'aceptado' && (
+                      {can('despacho.consultar_qr') && d.manifiesto_id && d.estado_manifiesto === 'aceptado' && (
                         <button
                           className={`btn-ghost px-2 py-1 ${d.seguridadqr_error ? 'text-amber-600' : d.seguridadqr ? 'text-emerald-600' : ''}`}
                           title={
@@ -279,7 +280,7 @@ export default function DespachosList() {
                           {consultandoQr === d.manifiesto_id ? <Loader2 size={15} className="animate-spin" /> : <QrCode size={15} />}
                         </button>
                       )}
-                      {isAdmin && d.manifiesto_id && (d.estado_manifiesto === 'aceptado' || d.estado_manifiesto === 'interno') && (
+                      {can('despacho.anular') && d.manifiesto_id && (d.estado_manifiesto === 'aceptado' || d.estado_manifiesto === 'interno') && (
                         <button
                           className="btn-ghost px-2 py-1 text-red-600"
                           title="Anular despacho"

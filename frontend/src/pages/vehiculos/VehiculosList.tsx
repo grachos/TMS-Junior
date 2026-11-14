@@ -14,7 +14,7 @@ import { StatusBadge } from '../../components/StatusBadge';
 import type { PagedResponse, VehiculoListRow } from '../../types';
 
 export default function VehiculosList() {
-  const isAdmin = useAuthStore((s) => s.isAdmin());
+  const can = useAuthStore((s) => s.can);
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState<PagedResponse<VehiculoListRow> | null>(null);
   const [q, setQ] = useState(params.get('q') ?? '');
@@ -141,7 +141,7 @@ export default function VehiculosList() {
                       <Link to={`/vehiculos/${v.id}/editar`} className="btn-ghost px-2 py-1" title="Editar">
                         <Pencil size={15} />
                       </Link>
-                      {isAdmin && v.estado_rndc !== 'registrado' && (
+                      {can('vehiculo.registrar_rndc') && v.estado_rndc !== 'registrado' && (
                         <button
                           className="btn-ghost px-2 py-1"
                           title="Registrar en RNDC"

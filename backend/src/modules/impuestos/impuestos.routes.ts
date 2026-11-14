@@ -9,7 +9,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
-import { requireRole } from '../auth/auth.middleware.js';
+import { requireAccion } from '../auth/auth.middleware.js';
 import { withTransaction, db } from '../../db/pool.js';
 import { actorDe, auditar } from '../auditoria/auditoria.repo.js';
 import * as repo from './impuestos.repo.js';
@@ -72,7 +72,7 @@ impuestosRouter.get(
 
 impuestosRouter.get(
   '/ica',
-  requireRole('admin'),
+  requireAccion('impuestos.gestionar'),
   asyncHandler(async (req, res) => {
     const num = (v: unknown) => {
       const n = Number(v);
@@ -90,7 +90,7 @@ impuestosRouter.get(
 
 impuestosRouter.put(
   '/ica/:codigo',
-  requireRole('admin'),
+  requireAccion('impuestos.gestionar'),
   asyncHandler(async (req, res) => {
     const codigo = codigoDe(req);
     const parsed = tarifaSchema.safeParse(req.body ?? {});
@@ -112,7 +112,7 @@ impuestosRouter.put(
 
 impuestosRouter.delete(
   '/ica/:codigo',
-  requireRole('admin'),
+  requireAccion('impuestos.gestionar'),
   asyncHandler(async (req, res) => {
     const codigo = codigoDe(req);
     await withTransaction(async (conn) => {

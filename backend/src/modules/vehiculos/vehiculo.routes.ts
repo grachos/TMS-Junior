@@ -12,7 +12,7 @@
 
 import { Router } from 'express';
 import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
-import { requireRole, requirePagina } from '../auth/auth.middleware.js';
+import { requirePagina, requireAccion } from '../auth/auth.middleware.js';
 import { vehiculoUpsertSchema } from './vehiculo.schema.js';
 import * as repo from './vehiculo.repo.js';
 
@@ -94,7 +94,7 @@ vehiculoRouter.put(
 
 vehiculoRouter.post(
   '/:id/registrar-rndc',
-  requireRole('admin'),
+  requireAccion('vehiculo.registrar_rndc'),
   asyncHandler(async (req, res) => {
     const resp = await repo.registrarEnRndc(Number(req.params.id));
     if (resp.ok) {

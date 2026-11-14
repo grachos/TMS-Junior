@@ -20,7 +20,7 @@ const ESTADO_STYLE: Record<EstadoMaestroRndc, string> = {
 };
 
 export default function TercerosList() {
-  const isAdmin = useAuthStore((s) => s.isAdmin());
+  const can = useAuthStore((s) => s.can);
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState<PagedResponse<TerceroListRow> | null>(null);
   const [q, setQ] = useState(params.get('q') ?? '');
@@ -163,7 +163,7 @@ export default function TercerosList() {
                       <Link to={`/terceros/${t.id}/editar`} className="btn-ghost px-2 py-1" title="Editar">
                         <Pencil size={15} />
                       </Link>
-                      {isAdmin && t.estado_rndc !== 'registrado' && (
+                      {can('tercero.registrar_rndc') && t.estado_rndc !== 'registrado' && (
                         <button
                           className="btn-ghost px-2 py-1"
                           title="Registrar en RNDC"

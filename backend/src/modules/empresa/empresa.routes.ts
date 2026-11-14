@@ -8,7 +8,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler, badRequest, conflict } from '../../http/errors.js';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
-import { requireRole } from '../auth/auth.middleware.js';
+import { requireAccion } from '../auth/auth.middleware.js';
 import * as repo from './empresa.repo.js';
 import { withTransaction } from '../../db/pool.js';
 import { actorDe, auditar, cambios } from '../auditoria/auditoria.repo.js';
@@ -99,7 +99,7 @@ empresaRouter.get(
 
 empresaRouter.put(
   '/',
-  requireRole('admin'),
+  requireAccion('empresa.editar'),
   asyncHandler(async (req, res) => {
     const parsed = empresaSchema.safeParse(req.body);
     if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Datos inválidos.');

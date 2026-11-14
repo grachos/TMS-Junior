@@ -12,7 +12,7 @@
 
 import { Router } from 'express';
 import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
-import { requireRole, requirePagina } from '../auth/auth.middleware.js';
+import { requirePagina, requireAccion } from '../auth/auth.middleware.js';
 import { terceroUpsertSchema } from './tercero.schema.js';
 import * as repo from './tercero.repo.js';
 
@@ -93,7 +93,7 @@ terceroRouter.put(
 /** POST /api/terceros/:id/registrar-rndc  (real RNDC send: admin only) */
 terceroRouter.post(
   '/:id/registrar-rndc',
-  requireRole('admin'),
+  requireAccion('tercero.registrar_rndc'),
   asyncHandler(async (req, res) => {
     const resp = await repo.registrarEnRndc(Number(req.params.id));
     if (resp.ok) {
