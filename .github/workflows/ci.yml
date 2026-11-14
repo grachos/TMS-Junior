@@ -12,9 +12,49 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # Tests contra una base MariaDB real (transacciones, bloqueos, migraciones).
+  # La base se arma con el mismo instalador que usa un sitio nuevo, así que
+  # también prueba que schema + todas las migraciones se importan sin errores.
+  db-tests:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: ci
+          MARIADB_DATABASE: tms_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      TEST_DB: '1'
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: tms_test
+      DB_USER: root
+      DB_PASS: ci
+      JWT_SECRET: ci-secreto-de-pruebas-0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Armar la base con el instalador de un sitio nuevo
+        run: |
+          node database/generar_instalacion.mjs "$RUNNER_TEMP/instalacion.sql"
+          mysql -h 127.0.0.1 -uroot -pci --default-character-set=utf8mb4 tms_test < "$RUNNER_TEMP/instalacion.sql"
+      - name: Tests con base de datos
+        run: npm test --workspace backend
