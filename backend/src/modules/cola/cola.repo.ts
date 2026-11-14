@@ -335,6 +335,22 @@ function calcularPasosAnulacion(manif: Row, remesas: Row[]): PasoAnulacion[] {
   return pasos;
 }
 
+/**
+ * Bloquea la fila del manifiesto hasta el COMMIT/ROLLBACK. Toda operación que
+ * cambie el estado RNDC de un despacho (anular en cascada, anular un documento,
+ * guardar el cumplido) lo llama PRIMERO, antes de cualquier otra lectura de la
+ * transacción: así dos peticiones sobre el mismo despacho se turnan y la
+ * segunda valida contra lo que confirmó la primera. Antes, dos "Anular" a la
+ * vez pasaban ambos la validación y encolaban la anulación dos veces
+ * (test/anulacion_cumplido.db.test.ts). Devuelve false si el manifiesto no existe.
+ *
+ * Orden de bloqueo: manifiesto → (filas de cola/remesas que se tocan después).
+ */
+export async function bloquearManifiesto(conn: Queryable, manifiestoId: number): Promise<boolean> {
+  const [rows] = await conn.query<RowDataPacket[]>('SELECT id FROM manifiesto WHERE id = ? FOR UPDATE', [manifiestoId]);
+  return rows.length > 0;
+}
+
 async function manifiestoYRemesas(conn: Queryable, manifiestoId: number): Promise<{ manif: Row; remesas: Row[] } | null> {
   const manif = await fila(conn, 'SELECT * FROM manifiesto WHERE id = ?', [manifiestoId]);
   if (manif === null) return null;
@@ -387,6 +403,7 @@ export async function encolarAnulacion(
   observaciones: string,
   anuladoPor: number | null,
 ): Promise<void> {
+  if (!(await bloquearManifiesto(conn, manifiestoId))) throw new Error('Manifiesto no encontrado.');
   const datos = await manifiestoYRemesas(conn, manifiestoId);
   if (datos === null) throw new Error('Manifiesto no encontrado.');
   const { manif, remesas } = datos;
@@ -569,6 +586,12 @@ export async function encolarAnulacionIndividual(
   observaciones: string,
   anuladoPor: number | null,
 ): Promise<void> {
+  // manifiesto_id de una fila de cola nunca cambia, así que se lee FUERA de la
+  // transacción (pool): una lectura normal aquí fijaría la "foto" de la
+  // transacción antes del bloqueo y la validación vería datos viejos.
+  const ref = await fila(db(), 'SELECT manifiesto_id FROM cola_envios WHERE id = ?', [colaId]);
+  if (ref === null) throw new Error('Registro de cola no encontrado.');
+  await bloquearManifiesto(conn, Number(ref.manifiesto_id));
   const preview = await previsualizarAnulacionIndividual(colaId, conn);
   if (!preview.puedeAnular || !preview.tipoAnulacion) {
     throw new Error(preview.motivoBloqueo ?? 'No se puede anular este documento.');
@@ -665,27 +688,48 @@ async function enviarFila(rndc: RndcClient, row: Row): Promise<RndcRespuesta> {
   }
 }
 
-/** Propagates the result to the source document and closes the dispatch. Port of marcarOrigen(). */
-async function marcarOrigen(row: Row, resp: RndcRespuesta): Promise<void> {
+/**
+ * Marks a queue row as sent AND propagates the result to its source document
+ * in ONE transaction. Before, these were separate statements: if the second
+ * failed (or the process died in between) the row said 'enviado' while the
+ * remesa/manifiesto never became 'aceptado', and nothing repaired it
+ * (test/cola_reclamo.db.test.ts). Now, if anything fails, both roll back and
+ * the row stays 'enviando', so recuperarEnviandoAtascados() resends it later;
+ * the RNDC answers DUPLICADO and it's treated as a success.
+ *
+ * The manifiesto's QR lookup is another RNDC call, so it runs only after the commit.
+ */
+async function marcarEnviado(row: Row, resp: RndcRespuesta, colaSql: string, colaParams: unknown[]): Promise<void> {
+  await withTransaction(async (conn) => {
+    await conn.query(colaSql, colaParams);
+    await marcarOrigen(row, resp, conn);
+  });
+  if (row.tipo_documento === 'manifiesto') await consultarSeguridadQr(Number(row.referencia_id));
+}
+
+/**
+ * Propagates the result to the source document and closes the dispatch. Port
+ * of marcarOrigen(). Database work only (runs inside marcarEnviado's transaction).
+ */
+async function marcarOrigen(row: Row, resp: RndcRespuesta, exec: Queryable): Promise<void> {
   const tipo = row.tipo_documento;
   if (tipo === 'remesa' || tipo === 'manifiesto') {
-    await db().query(`UPDATE \`${tipo}\` SET estado_rndc = 'aceptado', rndc_ingreso_id = ? WHERE id = ?`, [
+    await exec.query(`UPDATE \`${tipo}\` SET estado_rndc = 'aceptado', rndc_ingreso_id = ? WHERE id = ?`, [
       resp.ingresoId,
       Number(row.referencia_id),
     ]);
   }
   if (tipo === 'manifiesto') {
-    await db().query("UPDATE solicitud_servicio SET estado = 'despachada' WHERE id = ?", [Number(row.solicitud_id)]);
-    await consultarSeguridadQr(Number(row.referencia_id));
+    await exec.query("UPDATE solicitud_servicio SET estado = 'despachada' WHERE id = ?", [Number(row.solicitud_id)]);
   }
   if (tipo === 'cumplido_remesa') {
-    await db().query("UPDATE remesa SET cumplido_estado_rndc = 'aceptado', cumplido_rndc_ingreso_id = ? WHERE id = ?", [
+    await exec.query("UPDATE remesa SET cumplido_estado_rndc = 'aceptado', cumplido_rndc_ingreso_id = ? WHERE id = ?", [
       resp.ingresoId,
       Number(row.referencia_id),
     ]);
   }
   if (tipo === 'cumplido_manifiesto') {
-    await db().query(
+    await exec.query(
       "UPDATE manifiesto SET cumplido_estado_rndc = 'aceptado', cumplido_rndc_ingreso_id = ? WHERE id = ?",
       [resp.ingresoId, Number(row.referencia_id)],
     );
@@ -694,13 +738,13 @@ async function marcarOrigen(row: Row, resp: RndcRespuesta): Promise<void> {
   // Anular cumplido (28/29) deja el cumplido re-cumplible: vuelve a 'pendiente'
   // y limpia el ingreso, para que reaparezca "Cumplir" y se pueda reenviar.
   if (tipo === 'anular_cumplido_manifiesto') {
-    await db().query(
+    await exec.query(
       "UPDATE manifiesto SET cumplido_estado_rndc = 'pendiente', cumplido_rndc_ingreso_id = NULL WHERE id = ?",
       [Number(row.referencia_id)],
     );
   }
   if (tipo === 'anular_cumplido_remesa') {
-    await db().query(
+    await exec.query(
       "UPDATE remesa SET cumplido_estado_rndc = 'pendiente', cumplido_rndc_ingreso_id = NULL WHERE id = ?",
       [Number(row.referencia_id)],
     );
@@ -709,7 +753,7 @@ async function marcarOrigen(row: Row, resp: RndcRespuesta): Promise<void> {
   // no lo modelamos como estado propio — su ingreso queda en cola_envios (Cola).
   // Anular manifiesto/remesa (32/9): estado final 'anulado' + número de anulación.
   if (tipo === 'anular_manifiesto') {
-    await db().query(
+    await exec.query(
       "UPDATE manifiesto SET estado_rndc = 'anulado', anulacion_rndc_id = ?, anulado_at = NOW() WHERE id = ?",
       [resp.ingresoId, Number(row.referencia_id)],
     );
@@ -720,7 +764,7 @@ async function marcarOrigen(row: Row, resp: RndcRespuesta): Promise<void> {
     // ('borrador'|'procesada'|'despachada'|'anulada'; nunca otro).
     const solicitudId = Number(row.solicitud_id);
     const sol = await fila(
-      db(),
+      exec,
       'SELECT cantidad_vehiculos, cantidad_vehiculos_original FROM solicitud_servicio WHERE id = ?',
       [solicitudId],
     );
@@ -728,7 +772,7 @@ async function marcarOrigen(row: Row, resp: RndcRespuesta): Promise<void> {
       const original = Number(sol.cantidad_vehiculos_original ?? 1) || 1;
       const nuevaCantidad = Math.min(Number(sol.cantidad_vehiculos ?? 0) + 1, original);
       const nuevoEstado = nuevaCantidad >= original ? 'borrador' : 'procesada';
-      await db().query('UPDATE solicitud_servicio SET cantidad_vehiculos = ?, estado = ? WHERE id = ?', [
+      await exec.query('UPDATE solicitud_servicio SET cantidad_vehiculos = ?, estado = ? WHERE id = ?', [
         nuevaCantidad,
         nuevoEstado,
         solicitudId,
@@ -736,7 +780,7 @@ async function marcarOrigen(row: Row, resp: RndcRespuesta): Promise<void> {
     }
   }
   if (tipo === 'anular_remesa') {
-    await db().query(
+    await exec.query(
       "UPDATE remesa SET estado_rndc = 'anulado', anulacion_rndc_id = ?, anulado_at = NOW() WHERE id = ?",
       [resp.ingresoId, Number(row.referencia_id)],
     );
@@ -906,16 +950,17 @@ async function remediarNoCumplido(row: Row, resp: RndcRespuesta): Promise<boolea
   if (!texto.includes(codigo)) return false;
 
   const id = Number(row.id);
-  await db().query(
+  // marcarOrigen() no usa resp.ingresoId para estas dos ramas — solo vuelve el
+  // cumplido a 'pendiente', que es exactamente el efecto que buscamos aquí.
+  await marcarEnviado(
+    row,
+    resp,
     `UPDATE cola_envios
      SET estado = 'enviado', rndc_ingreso_id = NULL, respuesta_rndc = ?, ultimo_error = NULL,
          intentos = intentos + 1, enviado_at = NOW()
      WHERE id = ?`,
     [resp.respuestaCruda, id],
   );
-  // marcarOrigen() no usa resp.ingresoId para estas dos ramas — solo vuelve el
-  // cumplido a 'pendiente', que es exactamente el efecto que buscamos aquí.
-  await marcarOrigen(row, resp);
   // eslint-disable-next-line no-console
   console.warn(
     `[anulacion] ${tipo} #${id} (${codigo}): el RNDC dice que nunca fue cumplido. Se omite y se libera la cascada.`,
@@ -1087,14 +1132,15 @@ async function remediarCumplidoPendienteAntesDeAnular(row: Row, resp: RndcRespue
 async function aplicarResultado(row: Row, resp: RndcRespuesta, minutos: number): Promise<void> {
   const id = Number(row.id);
   if (resp.ok) {
-    await db().query(
+    await marcarEnviado(
+      row,
+      resp,
       `UPDATE cola_envios
        SET estado = 'enviado', rndc_ingreso_id = ?, respuesta_rndc = ?, ultimo_error = NULL,
            intentos = intentos + 1, enviado_at = NOW()
        WHERE id = ?`,
       [resp.ingresoId, resp.respuestaCruda, id],
     );
-    await marcarOrigen(row, resp);
     return;
   }
   // Antes de contar la falla: ¿el RNDC pide anular primero el cumplido inicial?
