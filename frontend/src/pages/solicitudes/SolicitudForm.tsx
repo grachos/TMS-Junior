@@ -4,7 +4,7 @@
  * autocomplete + empaque), and valores with the auto-computed retentions.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, ArrowLeft, Loader2, FileText, AlertTriangle } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
@@ -127,6 +127,52 @@ export default function SolicitudForm() {
       }
     })();
   }, [editar, id]);
+
+  // ICA by origin city. The server takes the trip's origin from the REMITENTE's
+  // municipality, so choosing a remitente is the moment to look up that city's
+  // tariff (configured by an admin in Impuestos) and propose it. It is only a
+  // proposal: each solicitud keeps the rate it is saved with, and a rate the
+  // user typed (or one already saved) is never overwritten silently.
+  const [icaAviso, setIcaAviso] = useState<{ kind: 'info' | 'warn'; text: string } | null>(null);
+  const icaPropuesta = useRef<string | null>(null); // last value we filled in ourselves
+  const consultaIca = useRef(0); // ignores out-of-date lookups
+  const icaActual = useRef(''); // mirrors f.porcentaje_ica for the async lookup
+
+  async function proponerIca(codMunicipio: string, municipioNombre: string) {
+    const turno = ++consultaIca.current;
+    if (!codMunicipio) {
+      setIcaAviso({ kind: 'warn', text: 'El remitente no tiene municipio registrado, así que no se puede proponer la tarifa de ICA. Escríbela a mano.' });
+      return;
+    }
+    let tarifa: number | null = null;
+    try {
+      tarifa = (await api<{ tarifa_por_mil: number | null }>(`/impuestos/ica/${encodeURIComponent(codMunicipio)}`)).tarifa_por_mil;
+    } catch {
+      if (turno === consultaIca.current) setIcaAviso({ kind: 'warn', text: 'No se pudo consultar la tarifa de ICA del municipio de origen. Escríbela a mano.' });
+      return;
+    }
+    if (turno !== consultaIca.current) return;
+    const propuesta = tarifa === null ? '0' : String(tarifa);
+    const nombre = municipioNombre || codMunicipio;
+    // Latest value of the field (the user may have typed while the lookup ran).
+    const actual = icaActual.current;
+    if (actual === '' || actual === icaPropuesta.current) {
+      icaPropuesta.current = propuesta;
+      setF((p) => ({ ...p, porcentaje_ica: propuesta }));
+      setIcaAviso(
+        tarifa === null
+          ? { kind: 'warn', text: `El municipio de origen (${nombre}) no tiene tarifa de ICA configurada, así que se usa 0. Un administrador puede configurarla en Impuestos.` }
+          : { kind: 'info', text: `Tarifa de ICA de ${nombre}: ${tarifa} por mil. Puedes cambiarla para esta solicitud.` },
+      );
+    } else {
+      setIcaAviso({
+        kind: 'warn',
+        text: `Se mantuvo la tarifa de ICA que ya tenía la solicitud (${actual}). La del municipio de origen (${nombre}) es ${tarifa === null ? 'ninguna (no configurada)' : `${tarifa} por mil`}; cámbiala si corresponde.`,
+      });
+    }
+  }
+
+  icaActual.current = f.porcentaje_ica;
 
   // Auto-compute retentions (server recomputes authoritatively).
   const ret = useMemo(
@@ -273,8 +319,15 @@ export default function SolicitudForm() {
             <TerceroField
               label="Remitente"
               initialLabel={labels.remitente}
-              onClear={() => setF((p) => ({ ...p, remitente_tipo_id: '', remitente_num_id: '' }))}
-              onSelect={(it) => setF((p) => ({ ...p, remitente_tipo_id: String(it.tipo_id ?? ''), remitente_num_id: String(it.num_id ?? '') }))}
+              onClear={() => {
+                consultaIca.current++;
+                setIcaAviso(null);
+                setF((p) => ({ ...p, remitente_tipo_id: '', remitente_num_id: '' }));
+              }}
+              onSelect={(it) => {
+                setF((p) => ({ ...p, remitente_tipo_id: String(it.tipo_id ?? ''), remitente_num_id: String(it.num_id ?? '') }));
+                void proponerIca(String(it.cod_municipio ?? ''), String(it.municipio_nombre ?? ''));
+              }}
             />
             <TerceroField
               label="Destinatario"
@@ -377,7 +430,13 @@ export default function SolicitudForm() {
             </div>
             <div>
               <label className="field-label">Tarifa ICA (por mil)</label>
-              <input type="number" step="0.01" className="field-input" value={f.porcentaje_ica} onChange={(e) => set('porcentaje_ica', e.target.value)} />
+              <input type="number" step="0.001" className="field-input" value={f.porcentaje_ica} onChange={(e) => set('porcentaje_ica', e.target.value)} />
+              {icaAviso && (
+                <p className={`mt-1 flex items-start gap-1 text-xs ${icaAviso.kind === 'warn' ? 'text-amber-700' : 'text-slate-500'}`} role={icaAviso.kind === 'warn' ? 'alert' : 'status'}>
+                  {icaAviso.kind === 'warn' && <AlertTriangle size={13} className="mt-0.5 shrink-0" />}
+                  <span>{icaAviso.text}</span>
+                </p>
+              )}
             </div>
             <div>
               <label className="field-label">Retención ICA</label>

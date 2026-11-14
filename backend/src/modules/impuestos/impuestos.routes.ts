@@ -1,0 +1,111 @@
+/**
+ * Light TMS - Impuestos routes.
+ *   GET    /api/impuestos/ica/:codigo   tariff of a municipio (any logged-in user; null if none)
+ *   GET    /api/impuestos/ica           configured tariffs (admin) — q, page, pageSize
+ *   PUT    /api/impuestos/ica/:codigo   set/update a tariff (admin)
+ *   DELETE /api/impuestos/ica/:codigo   remove a tariff (admin)
+ */
+
+import { Router } from 'express';
+import { z } from 'zod';
+import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
+import { requireRole } from '../auth/auth.middleware.js';
+import { withTransaction, db } from '../../db/pool.js';
+import { actorDe, auditar } from '../auditoria/auditoria.repo.js';
+import * as repo from './impuestos.repo.js';
+
+export const impuestosRouter = Router();
+
+const codigoSchema = z.string().trim().regex(/^\d{1,8}$/, 'Código de municipio inválido.');
+
+/** Per-mil tariff: 0..100, at most 3 decimals (the column stores 3; more would be rounded silently). */
+const tarifaSchema = z.object({
+  tarifa_por_mil: z
+    .union([z.number(), z.string().trim().min(1, 'La tarifa es obligatoria.')])
+    .transform((v) => (typeof v === 'string' ? Number(v.replace(',', '.')) : v))
+    .pipe(
+      z
+        .number({ invalid_type_error: 'La tarifa debe ser un número.' })
+        .finite('La tarifa debe ser un número.')
+        .min(0, 'La tarifa no puede ser negativa.')
+        .max(100, 'La tarifa por mil no puede superar 100.')
+        .refine((n) => Math.abs(n * 1000 - Math.round(n * 1000)) < 1e-6, 'La tarifa admite máximo 3 decimales.'),
+    ),
+});
+
+function codigoDe(req: { params: Record<string, string> }): string {
+  const parsed = codigoSchema.safeParse(req.params.codigo);
+  if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Código inválido.');
+  return parsed.data;
+}
+
+impuestosRouter.get(
+  '/ica/:codigo',
+  asyncHandler(async (req, res) => {
+    const codigo = codigoDe(req);
+    res.json({
+      codigo_rndc: codigo,
+      municipio: await repo.nombreMunicipio(db(), codigo),
+      tarifa_por_mil: await repo.tarifaDe(db(), codigo),
+    });
+  }),
+);
+
+impuestosRouter.get(
+  '/ica',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const num = (v: unknown) => {
+      const n = Number(v);
+      return Number.isInteger(n) && n > 0 ? n : undefined;
+    };
+    res.json(
+      await repo.listar({
+        q: typeof req.query.q === 'string' && req.query.q.trim() !== '' ? req.query.q.trim() : undefined,
+        page: num(req.query.page),
+        pageSize: num(req.query.pageSize),
+      }),
+    );
+  }),
+);
+
+impuestosRouter.put(
+  '/ica/:codigo',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const codigo = codigoDe(req);
+    const parsed = tarifaSchema.safeParse(req.body ?? {});
+    if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Tarifa inválida.');
+    const tarifa = parsed.data.tarifa_por_mil;
+    await withTransaction(async (conn) => {
+      const municipio = await repo.nombreMunicipio(conn, codigo);
+      if (!municipio) throw notFound('El municipio no existe.');
+      const antes = await repo.tarifaBloqueada(conn, codigo);
+      await repo.guardar(conn, codigo, tarifa, req.user?.sub ?? null);
+      await auditar(
+        conn, actorDe(req), 'impuesto.ica.guardar', 'impuesto_ica', codigo,
+        antes === null ? `Configuró el ICA de ${municipio}: ${tarifa} por mil` : `Cambió el ICA de ${municipio}: ${antes} → ${tarifa} por mil`,
+        { municipio, antes, despues: tarifa },
+      );
+    });
+    res.json({ ok: true });
+  }),
+);
+
+impuestosRouter.delete(
+  '/ica/:codigo',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const codigo = codigoDe(req);
+    await withTransaction(async (conn) => {
+      const antes = await repo.tarifaBloqueada(conn, codigo);
+      if (antes === null) throw notFound('Ese municipio no tiene tarifa de ICA configurada.');
+      const municipio = (await repo.nombreMunicipio(conn, codigo)) ?? codigo;
+      await repo.eliminar(conn, codigo);
+      await auditar(conn, actorDe(req), 'impuesto.ica.eliminar', 'impuesto_ica', codigo, `Quitó el ICA de ${municipio} (era ${antes} por mil)`, {
+        municipio, antes,
+      });
+    });
+    res.json({ ok: true });
+  }),
+);

@@ -43,6 +43,8 @@ const ETIQUETAS: Record<string, string> = {
   'usuario.crear': 'Usuario creado',
   'usuario.actualizar': 'Usuario editado',
   'empresa.actualizar': 'Datos de empresa',
+  'impuesto.ica.guardar': 'ICA configurado',
+  'impuesto.ica.eliminar': 'ICA quitado',
 };
 const etiqueta = (a: string) => ETIQUETAS[a] ?? a;
 
