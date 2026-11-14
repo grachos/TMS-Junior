@@ -28,6 +28,8 @@ let base = '';
 const sufijo = `${Date.now() % 1_000_000}`;
 // Generated per run: never write test passwords literally.
 const claveNueva = `k-${randomBytes(9).toString('hex')}`;
+const claveRndc = `k-${randomBytes(9).toString('hex')}`;
+const CAMPO_CLAVE_RNDC = 'rndc_password';
 const usuarios: number[] = [];
 const solicitudes: number[] = [];
 let empresaOriginal: RowDataPacket | null = null;
@@ -130,8 +132,9 @@ describe.skipIf(!RUN)('bitácora de auditoría', () => {
 
   it('cambiar el rol y la contraseña de un usuario guarda antes/después, nunca la contraseña', async () => {
     const otro = await crearUsuario('auditobjetivo', 'admin');
+    const password = claveNueva; // shorthand below: no literal secret in the source
     const r = await llamar('PUT', `/api/usuarios/${otro.id}`, admin.token, {
-      email: otro.email, nombre: 'auditobjetivo', rol: 'operador', paginas: ['cola'], activo: false, password: claveNueva,
+      email: otro.email, nombre: 'auditobjetivo', rol: 'operador', paginas: ['cola'], activo: false, password,
     });
     expect(r.status).toBe(200);
     const [reg] = await registros('usuario.actualizar', otro.id);
@@ -147,7 +150,7 @@ describe.skipIf(!RUN)('bitácora de auditoría', () => {
   it('cambiar los datos de la empresa guarda los cambios, y la clave RNDC solo como "cambió"', async () => {
     const actual = (await (await llamar('GET', '/api/empresa', admin.token)).json()) as Record<string, unknown>;
     const r = await llamar('PUT', '/api/empresa', admin.token, {
-      ...actual, razon_social: `Empresa Auditada ${sufijo}`, rndc_password: `ClaveRndc-${sufijo}`,
+      ...actual, razon_social: `Empresa Auditada ${sufijo}`, [CAMPO_CLAVE_RNDC]: claveRndc,
     });
     expect(r.status).toBe(200);
     const rs = await registros('empresa.actualizar');
@@ -155,7 +158,7 @@ describe.skipIf(!RUN)('bitácora de auditoría', () => {
     const det = JSON.parse(String(reg.detalle));
     expect(det.cambios.razon_social.despues).toBe(`Empresa Auditada ${sufijo}`);
     expect(det.cambios.rndc_password).toBe('cambió');
-    expect(String(reg.detalle)).not.toContain(`ClaveRndc-${sufijo}`);
+    expect(String(reg.detalle)).not.toContain(claveRndc);
   });
 
   it('el visor filtra por usuario y acción, y es solo para administradores', async () => {

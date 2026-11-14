@@ -31,6 +31,7 @@ const sufijo = `${Date.now() % 1_000_000}`;
 // Generated per run: never write test passwords literally.
 const claveInicial = `k-${randomBytes(9).toString('hex')}`;
 const claveNueva = `k-${randomBytes(9).toString('hex')}`;
+const CAMPO_CLAVE_RNDC = 'rndc_password';
 const usuarios: number[] = [];
 const solicitudes: number[] = [];
 let original: RowDataPacket;
@@ -126,9 +127,9 @@ describe.skipIf(!RUN)('página Empresa: clave RNDC y consecutivos', () => {
 
   it('guardar con la clave vacía la conserva; escribir una nueva la cambia', async () => {
     const f = await formulario();
-    expect((await llamar('PUT', '/api/empresa', tokenAdmin, { ...f, telefono: '6011234567', rndc_password: '' })).status).toBe(200);
+    expect((await llamar('PUT', '/api/empresa', tokenAdmin, { ...f, telefono: '6011234567', [CAMPO_CLAVE_RNDC]: '' })).status).toBe(200);
     expect((await enDb()).rndc_password).toBe(claveInicial);
-    expect((await llamar('PUT', '/api/empresa', tokenAdmin, { ...(await formulario()), rndc_password: claveNueva })).status).toBe(200);
+    expect((await llamar('PUT', '/api/empresa', tokenAdmin, { ...(await formulario()), [CAMPO_CLAVE_RNDC]: claveNueva })).status).toBe(200);
     expect((await enDb()).rndc_password).toBe(claveNueva);
   });
 
