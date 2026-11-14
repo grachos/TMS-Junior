@@ -88,9 +88,16 @@ export const TurnstileWidget = forwardRef<TurnstileHandle, TurnstileWidgetProps>
           callback: (token: string) => callbacks.current.onToken(token),
           'expired-callback': descartar,
           'timeout-callback': descartar,
-          'error-callback': () => {
+          // Cloudflare entrega un código (p. ej. 110200 = dominio no autorizado en el widget,
+          // 110100/110110 = clave del sitio inválida). Se muestra para poder diagnosticar sin abrir la consola.
+          'error-callback': (codigo?: string | number) => {
             descartar();
-            callbacks.current.onError?.('No se pudo completar la verificación de seguridad. Recarga la página e intenta de nuevo.');
+            const detalle = codigo ? ` (código ${codigo})` : '';
+            // eslint-disable-next-line no-console
+            console.error(`[Turnstile] error${detalle}`);
+            callbacks.current.onError?.(
+              `No se pudo completar la verificación de seguridad${detalle}. Recarga la página e intenta de nuevo; si sigue igual, avisa al administrador.`,
+            );
             return true;
           },
         });
