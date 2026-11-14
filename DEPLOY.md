@@ -70,6 +70,8 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v46_contenedor_serial.sql
    migracion_v47_unique_consecutivos.sql   ← NUEVO — llave única de No. manifiesto/remesa (ver nota)
    migracion_v48_login_intentos.sql   ← NUEVO — límite de intentos de login (5 fallos / 15 min)
+   migracion_v49_producto_columnas.sql   ← NUEVO — amplía columnas de producto para el catálogo RNDC
+   productos.sql   ← SIEMPRE AL FINAL: catálogo de productos (solo carga si la tabla está vacía)
    ```
 
    > **v43 y v44 corrigen corrupción silenciosa de datos, no son solo ajustes
@@ -84,6 +86,13 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    > estado real. Ejecútalas en orden (v43 antes que v44) antes de seguir
    > anulando.
    >
+   > **Instalación nueva:** `migracion_v21.sql` falla con "Unknown column
+   > 'cantidad_cargada'" porque `schema.sql` ya trae ese cambio. Es esperado:
+   > sigue con v22. `productos.sql` carga los 3.758 productos del catálogo oficial
+   > del RNDC; se genera desde `catalogo_productos.csv` con
+   > `node database/generar_productos_sql.mjs` (reemplaza a
+   > `importar_productos_csv.php`). En una base que ya tiene productos no cambia nada.
+
    > **v47** agrega una llave única a `manifiesto.num_manifiesto` y
    > `remesa.num_remesa`. Es repetible y no falla con datos existentes: si ya hay
    > números repetidos, no crea esa llave y la última consulta los lista (tabla,
