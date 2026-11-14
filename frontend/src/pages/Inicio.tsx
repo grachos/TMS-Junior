@@ -59,7 +59,7 @@ export default function Inicio() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api<Health>('/health', { anonymous: true }).then(setHealth).catch(() => {});
+    api<Health>('/estado').then(setHealth).catch(() => {});
     api<Stats>('/stats')
       .then(setStats)
       .catch((e) => setErr(e instanceof Error ? e.message : 'Error'))

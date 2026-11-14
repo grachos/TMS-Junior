@@ -201,8 +201,8 @@ Run from the repository root:
 
 ## API overview
 
-All routes are under `/api` and require a Bearer JWT (except `/api/health` and
-`/api/auth/login`). Representative endpoints:
+All routes are under `/api` and require a Bearer JWT (except `/api/health` — which only says whether the app and the DB are up — and
+`/api/auth/login`; RNDC environment and send status are in the authenticated `/api/estado`). Representative endpoints:
 
 | Area | Endpoints |
 |------|-----------|

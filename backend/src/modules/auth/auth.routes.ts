@@ -7,8 +7,12 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { AppError, asyncHandler, badRequest, unauthorized } from '../../http/errors.js';
 import {
-  findByEmail, findById, toPublic, registrarIntento, marcarIntentoExitoso, LOGIN_MAX_FALLOS, LOGIN_VENTANA_MIN,
+  findByEmail, findById, toPublic,
+  registrarIntento as registrarIntentoLegacy, marcarIntentoExitoso as marcarIntentoExitosoLegacy, LOGIN_MAX_FALLOS, LOGIN_VENTANA_MIN,
 } from './auth.repo.js';
+import {
+  auditarAcceso, hashIdentificador, limitesPorDefecto, marcarExito, registrarIntento,
+} from './accesoGuard.js';
 import { signToken } from './jwt.js';
 import { requireAuth } from './auth.middleware.js';
 
@@ -19,45 +23,74 @@ const loginSchema = z.object({
 
 export const authRouter = Router();
 
+/**
+ * Hash válido y de MISMO costo que los reales (10): se compara siempre, exista o no
+ * la cuenta, para que el tiempo de respuesta no delate qué correos existen
+ * (antes un hash mal formado respondía en 1 ms y uno real en ~100 ms).
+ */
+const HASH_FALSO = bcrypt.hashSync('contraseña-que-nadie-tiene', 10);
+
+const MSG_BLOQUEO_CUENTA = (min: number) => `Demasiados intentos fallidos. Espera ${min} minutos e intenta de nuevo.`;
+const MSG_BLOQUEO_IP = 'Demasiadas solicitudes desde esta conexión. Intenta de nuevo en unos minutos.';
+
 /** POST /api/auth/login -> { token, user } */
 authRouter.post(
   '/login',
   asyncHandler(async (req, res) => {
+    const ip = req.ip ?? 'desconocida';
+    const userAgent = req.get('user-agent') ?? null;
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
+      await auditarAcceso({ ip, userAgent, identificadorHash: hashIdentificador(req.body?.email), usuarioId: null, resultado: 'SOLICITUD_INVALIDA' });
       throw badRequest(parsed.error.issues[0]?.message ?? 'Datos inválidos.');
     }
     const { email, password } = parsed.data;
+    const identificadorHash = hashIdentificador(email);
+    const lim = limitesPorDefecto();
 
-    // Brute-force lockout, counted in the DB (works across processes/restarts).
-    // Applies to unknown emails too, so it doesn't reveal which accounts exist.
-    // If migracion_v48 hasn't been run yet, login keeps working unlimited and
-    // the error is logged, rather than locking everyone out.
+    // Límites por IP y por cuenta, contados en la base (v55). Si esa migración aún
+    // no se corrió en esta base, se usa el límite anterior (v48) y se avisa en el log,
+    // en vez de dejar a todos sin límite o sin poder entrar.
     let intentoId: number | null = null;
+    let intentoLegacyId: number | null = null;
     try {
-      const intento = await registrarIntento(email, req.ip ?? null);
+      const intento = await registrarIntento(ip, identificadorHash, lim);
       intentoId = intento.id;
-      if (intento.fallos > LOGIN_MAX_FALLOS) {
-        res.setHeader('Retry-After', String(LOGIN_VENTANA_MIN * 60));
-        throw new AppError(
-          429,
-          `Demasiados intentos fallidos. Espera ${LOGIN_VENTANA_MIN} minutos e intenta de nuevo.`,
-        );
+      if (intento.bloqueo) {
+        res.setHeader('Retry-After', String(lim.ventanaMin * 60));
+        await auditarAcceso({
+          ip, userAgent, identificadorHash, usuarioId: null,
+          resultado: intento.bloqueo === 'IP' ? 'BLOQUEO_IP' : 'BLOQUEO_CUENTA',
+        });
+        throw new AppError(429, intento.bloqueo === 'IP' ? MSG_BLOQUEO_IP : MSG_BLOQUEO_CUENTA(lim.ventanaMin));
       }
     } catch (e) {
       if ((e as { code?: string }).code !== 'ER_NO_SUCH_TABLE') throw e;
       // eslint-disable-next-line no-console
-      console.error('[auth] Falta la tabla login_intentos (migracion_v48): el login no tiene límite de intentos.');
+      console.error('[auth] Falta la tabla auth_intentos (migracion_v55): se usa el límite anterior por correo.');
+      try {
+        const legacy = await registrarIntentoLegacy(email, req.ip ?? null);
+        intentoLegacyId = legacy.id;
+        if (legacy.fallos > LOGIN_MAX_FALLOS) {
+          res.setHeader('Retry-After', String(LOGIN_VENTANA_MIN * 60));
+          throw new AppError(429, MSG_BLOQUEO_CUENTA(LOGIN_VENTANA_MIN));
+        }
+      } catch (e2) {
+        if ((e2 as { code?: string }).code !== 'ER_NO_SUCH_TABLE') throw e2;
+        // eslint-disable-next-line no-console
+        console.error('[auth] Falta también login_intentos (migracion_v48): el login no tiene límite de intentos.');
+      }
     }
 
     const user = await findByEmail(email);
-    // Constant-ish behaviour: always run a hash comparison to reduce user enumeration.
-    const hash = user?.password_hash ?? '$2a$10$invalidinvalidinvalidinvalidinvalidinvalidinva';
-    const ok = await bcrypt.compare(password, hash);
+    const ok = await bcrypt.compare(password, user?.password_hash ?? HASH_FALSO);
     if (!user || !ok) {
+      await auditarAcceso({ ip, userAgent, identificadorHash, usuarioId: user?.id ?? null, resultado: 'CREDENCIALES' });
       throw unauthorized('Credenciales incorrectas.');
     }
-    if (intentoId !== null) await marcarIntentoExitoso(intentoId);
+    if (intentoId !== null) await marcarExito(intentoId);
+    if (intentoLegacyId !== null) await marcarIntentoExitosoLegacy(intentoLegacyId);
+    await auditarAcceso({ ip, userAgent, identificadorHash, usuarioId: user.id, resultado: 'EXITO' });
     const token = signToken({ sub: user.id, email: user.email, nombre: user.nombre, rol: user.rol, paginas: user.paginas });
     res.json({ token, user: toPublic(user) });
   }),
