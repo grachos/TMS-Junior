@@ -31,10 +31,10 @@ import { config } from '../../config/env.js';
  */
 export const ESQUEMA = `Tablas disponibles (solo lectura). Usa exactamente estos nombres:
 
-solicitud_servicio(id, consecutivo, estado, cantidad_vehiculos, created_at)
+solicitud_servicio(id, consecutivo, estado, cantidad_vehiculos, interna, created_at)  -- interna=1: viaje interno, nunca se envía al RNDC
   -- estado: 'borrador' | 'confirmada' | 'despachada' | 'anulada'
 manifiesto(id, solicitud_id, num_manifiesto, placa_vehiculo, estado_rndc, cumplido_estado_rndc, valor_flete_pactado, fecha_expedicion, created_at)
-  -- estado_rndc: 'pendiente' | 'enviado' | 'aceptado' | 'rechazado'
+  -- estado_rndc: 'pendiente' | 'enviado' | 'aceptado' | 'rechazado' | 'anulacion_pendiente' | 'anulado' | 'interno' (interno = solicitud interna, nunca se envía al RNDC)
   -- cumplido_estado_rndc: 'pendiente' | 'aceptado'
 remesa(id, solicitud_id, num_remesa, descripcion_producto, cantidad_cargada, unidad_medida, estado_rndc, created_at)
 manifiesto_remesa(manifiesto_id, remesa_id)  -- une manifiestos con sus remesas

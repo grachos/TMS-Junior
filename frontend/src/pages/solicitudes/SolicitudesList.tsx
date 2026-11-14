@@ -132,7 +132,10 @@ export default function SolicitudesList() {
                 const done = Math.max(0, orig - Number(s.cantidad_vehiculos ?? 0));
                 return (
                   <tr key={s.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="px-3 py-3 font-medium text-slate-800">{s.consecutivo ?? '—'}</td>
+                    <td className="px-3 py-3 font-medium text-slate-800">
+                      {s.consecutivo ?? '—'}
+                      {Number(s.interna) === 1 && <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">Interna</span>}
+                    </td>
                     <td className="px-3 py-3 text-slate-600">{s.fecha_solicitud ?? ''}</td>
                     <td className="px-3 py-3 text-slate-600">{muni(s.municipio_origen, s.origen_nombre)}</td>
                     <td className="px-3 py-3 text-slate-600">{muni(s.municipio_destino, s.destino_nombre)}</td>

@@ -110,7 +110,22 @@ const COMMON_STYLES = `
 // MANIFIESTO ELECTRÓNICO DE CARGA
 // ==================================================================
 
+/**
+ * Documents of an internal solicitud are never registered with the RNDC. A
+ * printout that looked like an official manifiesto/remesa would be a
+ * compliance risk, so it carries a banner and a watermark saying so.
+ */
+export const TEXTO_INTERNO = 'DOCUMENTO INTERNO — NO RADICADO ANTE EL RNDC';
+function marcaInterna(): string {
+  return (
+    `<div style="border:2px solid #b91c1c;background:#fee2e2;color:#991b1b;text-align:center;font-weight:bold;font-size:12px;padding:4px;margin-bottom:4px;">${e(TEXTO_INTERNO)}</div>` +
+    `<div style="position:fixed;top:38%;left:0;width:100%;text-align:center;font-size:64px;font-weight:bold;color:rgba(185,28,28,0.13);transform:rotate(-24deg);z-index:0;pointer-events:none;">DOCUMENTO INTERNO</div>`
+  );
+}
+
 export interface ManifiestoCtx {
+  /** Internal solicitud: shows the "no radicado ante el RNDC" banner and watermark. */
+  interno?: boolean;
   m: Row;
   remesas: Row[];
   solicitud: Row;
@@ -184,6 +199,7 @@ export function renderManifiestoHtml(c: ManifiestoCtx): string {
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><style>${COMMON_STYLES}
     .top-header td { border: none; vertical-align: top; }
   </style></head><body>
+  ${c.interno ? marcaInterna() : ''}
 
   <table class="no-border top-header"><tr>
     <td width="16%">
@@ -322,6 +338,8 @@ export function renderManifiestoHtml(c: ManifiestoCtx): string {
 // ==================================================================
 
 export interface RemesaCtx {
+  /** Internal solicitud: shows the "no radicado ante el RNDC" banner and watermark. */
+  interno?: boolean;
   remesas: Row[];
   solicitud: Row;
   empresa: Row;
@@ -444,5 +462,5 @@ export function renderRemesaHtml(c: RemesaCtx): string {
 
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><style>${COMMON_STYLES}
     .top-header td { border: none; vertical-align: top; }
-  </style></head><body>${body}</body></html>`;
+  </style></head><body>${c.interno ? marcaInterna() : ''}${body}</body></html>`;
 }

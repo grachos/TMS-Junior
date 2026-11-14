@@ -90,6 +90,7 @@ export default function SolicitudDetalle() {
         <h1 className="flex items-center gap-2 text-xl font-semibold text-slate-800">
           <FileText size={22} className="text-celeste-600" /> Solicitud {s.consecutivo ?? `#${s.id}`}
           <StatusBadge estado={s.estado} />
+          {Number(s.interna) === 1 && <StatusBadge estado="interno" />}
         </h1>
         <div className="flex gap-2">
           {s.estado !== 'despachada' && (

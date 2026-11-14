@@ -10,12 +10,14 @@ const STYLE: Record<string, string> = {
   error: 'bg-red-100 text-red-700',
   anulacion_pendiente: 'bg-orange-100 text-orange-700',
   anulado: 'bg-slate-200 text-slate-700',
+  interno: 'bg-violet-100 text-violet-700',
 };
 
 /** Etiqueta legible; si no hay una específica, se muestra el valor crudo (comportamiento anterior). */
 const LABEL: Record<string, string> = {
   anulacion_pendiente: 'Anulación en curso',
   anulado: 'Anulado',
+  interno: 'Interno (no RNDC)',
 };
 
 /** Colored pill for RNDC states (maestros + documents). */

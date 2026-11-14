@@ -114,8 +114,11 @@ export async function guardar(datos: Partial<Empresa>, exec: Queryable = db()): 
 
 /** Extracts the number from a "PREF-00000" consecutivo. Port of extraerNum(). */
 function extraerNum(val: string): number {
+  // The number is the LAST segment: 'REM-00007' and 'INT-R-00007' both give 7.
+  // (Reading the second segment turned 'INT-R-00007' into 'R' -> 0, so every
+  // internal dispatch would have received INT-R-00001.)
   const parts = val.split('-');
-  return Number.parseInt(parts.length > 1 ? (parts[1] ?? '0') : (parts[0] ?? '0'), 10) || 0;
+  return Number.parseInt(parts[parts.length - 1] ?? '0', 10) || 0;
 }
 
 const pad = (n: number, len: number) => String(n).padStart(len, '0');
@@ -138,8 +141,8 @@ const pad = (n: number, len: number) => String(n).padStart(len, '0');
  */
 async function siguienteConsecutivo(
   exec: Queryable,
-  columna: 'consecutivo_remesa' | 'consecutivo_manifiesto',
-  prefijo: 'REM' | 'MAN',
+  columna: 'consecutivo_remesa' | 'consecutivo_manifiesto' | 'consecutivo_interno_remesa' | 'consecutivo_interno_manifiesto',
+  prefijo: 'REM' | 'MAN' | 'INT-R' | 'INT-M',
 ): Promise<string> {
   const [rows] = await exec.query<RowDataPacket[]>(
     `SELECT ${columna} AS actual FROM maestro_empresa WHERE id = 1 FOR UPDATE`,
@@ -165,4 +168,17 @@ export function siguienteRemesa(exec: Queryable = db()): Promise<string> {
 /** Reserves and returns the next manifiesto consecutivo (MAN-00001). Port of siguienteManifiesto(). */
 export function siguienteManifiesto(exec: Queryable = db()): Promise<string> {
   return siguienteConsecutivo(exec, 'consecutivo_manifiesto', 'MAN');
+}
+
+/**
+ * Internal series (solicitud interna: nothing goes to the RNDC). Own counters,
+ * same company row and same lock, so the official MAN-/REM- series reported to
+ * the RNDC has no gaps.
+ */
+export function siguienteManifiestoInterno(exec: Queryable = db()): Promise<string> {
+  return siguienteConsecutivo(exec, 'consecutivo_interno_manifiesto', 'INT-M');
+}
+
+export function siguienteRemesaInterno(exec: Queryable = db()): Promise<string> {
+  return siguienteConsecutivo(exec, 'consecutivo_interno_remesa', 'INT-R');
 }

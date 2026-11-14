@@ -118,7 +118,9 @@ export default function DespachosList() {
       });
       setFlash({
         kind: 'ok',
-        message: 'Anulación encolada. Revisa el progreso y los números de aceptación en la página Cola.',
+        message: preview?.pasos.some((p) => p.tipo === 'anular_interno')
+          ? 'Despacho interno anulado. No se envió nada al RNDC.'
+          : 'Anulación encolada. Revisa el progreso y los números de aceptación en la página Cola.',
       });
       setAnularModal(null);
       await load();
@@ -250,7 +252,8 @@ export default function DespachosList() {
                       {isAdmin &&
                         d.manifiesto_id &&
                         d.estado_manifiesto !== 'anulacion_pendiente' &&
-                        d.estado_manifiesto !== 'anulado' && (
+                        d.estado_manifiesto !== 'anulado' &&
+                        d.estado_manifiesto !== 'interno' && (
                           <button
                             className="btn-ghost px-2 py-1"
                             title="Procesar despacho"
@@ -276,7 +279,7 @@ export default function DespachosList() {
                           {consultandoQr === d.manifiesto_id ? <Loader2 size={15} className="animate-spin" /> : <QrCode size={15} />}
                         </button>
                       )}
-                      {isAdmin && d.manifiesto_id && d.estado_manifiesto === 'aceptado' && (
+                      {isAdmin && d.manifiesto_id && (d.estado_manifiesto === 'aceptado' || d.estado_manifiesto === 'interno') && (
                         <button
                           className="btn-ghost px-2 py-1 text-red-600"
                           title="Anular despacho"
@@ -327,10 +330,17 @@ export default function DespachosList() {
                 <>
                   <div className="mb-4 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
                     <TriangleAlert size={18} className="mt-0.5 shrink-0" />
-                    <p>
-                      Esta acción es <strong>irreversible</strong> y se reporta al RNDC. Se ejecutarán estos pasos, en
-                      orden:
-                    </p>
+                    {preview.pasos.some((p) => p.tipo === 'anular_interno') ? (
+                      <p>
+                        Esta acción es <strong>irreversible</strong>. Es un despacho <strong>interno</strong>: no se envía nada al RNDC.
+                        Se libera el cupo del vehículo en la solicitud.
+                      </p>
+                    ) : (
+                      <p>
+                        Esta acción es <strong>irreversible</strong> y se reporta al RNDC. Se ejecutarán estos pasos, en
+                        orden:
+                      </p>
+                    )}
                   </div>
                   <ol className="mb-4 space-y-1.5 text-sm text-slate-700">
                     {preview.pasos.map((p, i) => (
@@ -357,7 +367,7 @@ export default function DespachosList() {
                       rows={3}
                       value={observaciones}
                       onChange={(e) => setObservaciones(e.target.value)}
-                      placeholder="Comentario opcional para el RNDC…"
+                      placeholder={preview.pasos.some((p) => p.tipo === 'anular_interno') ? 'Comentario opcional…' : 'Comentario opcional para el RNDC…'}
                     />
                   </div>
                 </>

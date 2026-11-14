@@ -118,6 +118,7 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v50_auditoria.sql   ← NUEVO — bitácora de auditoría (página Actividad)
    migracion_v51_ocultar_clave_rndc.sql   ← NUEVO — borra la clave RNDC de previsualizaciones guardadas
    migracion_v52_ica_municipio.sql   ← NUEVO — tarifa de ICA por municipio de origen (página Impuestos)
+   migracion_v53_solicitud_interna.sql   ← NUEVO — solicitudes internas (nada viaja al RNDC). CORRER ANTES de desplegar el código (agrega el estado 'interno'); revisa antes los dos SELECT que trae en su encabezado
    productos.sql   ← SIEMPRE AL FINAL: catálogo de productos (solo carga si la tabla está vacía)
    ```
 

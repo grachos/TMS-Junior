@@ -12,5 +12,10 @@
  * longer matches what was actually sent/accepted.
  */
 export function consecutivoRemesaRndc(numRemesa: unknown): string {
+  // Internal remesas (solicitud interna) are never sent to the RNDC and have
+  // their own series (INT-R-00001). Stripping the non-digits would turn
+  // INT-R-00001 into 0000000001, the same number as the official REM-00001, so
+  // they're shown exactly as stored.
+  if (String(numRemesa ?? '').startsWith('INT-')) return String(numRemesa);
   return String(parseInt(String(numRemesa ?? '0').replace(/[^0-9]/g, '') || '0', 10)).padStart(10, '0');
 }
