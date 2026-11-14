@@ -25,3 +25,6 @@ logs/*.log
 Thumbs.db
 .vscode/
 .idea/
+
+# Generado por database/generar_instalacion.mjs (instalación de un sitio nuevo)
+database/instalacion_nueva.sql

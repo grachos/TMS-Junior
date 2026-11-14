@@ -20,6 +20,7 @@ import { Autocomplete } from '../../components/Autocomplete';
 import { Alert } from '../../components/Alert';
 import { NATURALEZAS, UNIDADES, RESPONSABLES } from '../../lib/format';
 import type { AcItem } from '../../types';
+import { useEnvioUnico } from '../../lib/useEnvioUnico';
 
 type Remesa = Record<string, string>;
 
@@ -73,6 +74,8 @@ export default function DespachoForm() {
   const [remesas, setRemesas] = useState<Remesa[]>([remesaDesde()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Synchronous guard: ignores a second submit fired before React re-renders.
+  const envio = useEnvioUnico();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -170,6 +173,7 @@ export default function DespachoForm() {
       );
       return;
     }
+    if (!envio.tomar()) return;
     setSaving(true);
     try {
       const body = {
@@ -197,6 +201,7 @@ export default function DespachoForm() {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar el despacho.');
     } finally {
       setSaving(false);
+      envio.soltar();
     }
   }
 

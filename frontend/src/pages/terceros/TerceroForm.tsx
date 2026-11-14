@@ -12,6 +12,7 @@ import { MunicipioAutocomplete } from '../../components/MunicipioAutocomplete';
 import { MapPicker } from '../../components/MapPicker';
 import { Alert } from '../../components/Alert';
 import type { Tercero } from '../../types';
+import { useEnvioUnico } from '../../lib/useEnvioUnico';
 
 const TIPOS_ID: Record<string, string> = {
   C: 'C - Cédula de ciudadanía',
@@ -68,6 +69,8 @@ export default function TerceroForm() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [loading, setLoading] = useState(editar);
   const [saving, setSaving] = useState(false);
+  // Synchronous guard: ignores a second submit fired before React re-renders.
+  const envio = useEnvioUnico();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -113,6 +116,7 @@ export default function TerceroForm() {
       setError('Elige el municipio de la lista.');
       return;
     }
+    if (!envio.tomar()) return;
     setSaving(true);
     try {
       if (editar) {
@@ -125,6 +129,7 @@ export default function TerceroForm() {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar el tercero.');
     } finally {
       setSaving(false);
+      envio.soltar();
     }
   }
 

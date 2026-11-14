@@ -10,6 +10,7 @@ import { api, ApiError } from '../../lib/api';
 import { Alert } from '../../components/Alert';
 import { useAuthStore } from '../../store/auth';
 import type { StaffUser, Rol, Pagina } from '../../store/auth';
+import { useEnvioUnico } from '../../lib/useEnvioUnico';
 
 interface PaginaOpt {
   pagina: Pagina;
@@ -45,6 +46,8 @@ export default function UsuarioForm() {
   const [opciones, setOpciones] = useState<PaginaOpt[]>([]);
   const [loading, setLoading] = useState(editar);
   const [saving, setSaving] = useState(false);
+  // Synchronous guard: ignores a second submit fired before React re-renders.
+  const envio = useEnvioUnico();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -93,6 +96,7 @@ export default function UsuarioForm() {
       setError('La contraseña debe tener al menos 8 caracteres.');
       return;
     }
+    if (!envio.tomar()) return;
     setSaving(true);
     try {
       const paginas = form.rol === 'admin' || form.todasLasPaginas ? null : form.paginas;
@@ -118,6 +122,7 @@ export default function UsuarioForm() {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar el usuario.');
     } finally {
       setSaving(false);
+      envio.soltar();
     }
   }
 

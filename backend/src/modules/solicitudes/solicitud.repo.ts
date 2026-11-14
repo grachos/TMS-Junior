@@ -155,6 +155,15 @@ async function sembrarManifiesto(conn: Queryable, solicitudId: number, s: Row): 
   return insertNamed(conn, 'manifiesto', manifiesto);
 }
 
+/**
+ * The dispatch form sends '' (not null) for optional number/date fields the
+ * user leaves blank. In a strict-mode database '' is rejected for DECIMAL /
+ * INT / DATE columns ("Incorrect decimal value: ''"), which failed the whole
+ * dispatch with a 500; a non-strict one silently stored 0. Blank means "no
+ * value", so it's stored as NULL.
+ */
+const vacioANull = (v: unknown): SqlValue => (v === '' || v === undefined ? null : (v as SqlValue));
+
 /** Seeds a remesa (one per product). Port of sembrarRemesa(). */
 async function sembrarRemesa(conn: Queryable, solicitudId: number, rd: Row, s: Row): Promise<number> {
   // Inherit codigo_un / estado_producto from the product when dangerous.
@@ -182,10 +191,10 @@ async function sembrarRemesa(conn: Queryable, solicitudId: number, rd: Row, s: R
     descripcion_producto: rd.descripcion_producto ?? null,
     // cantidadCargada travels to the RNDC as the loaded quantity — it's the
     // remesa's own "Peso (kg)" field, not a hardcoded placeholder.
-    cantidad_cargada: rd.peso ?? 1,
+    cantidad_cargada: vacioANull(rd.peso) ?? 1,
     unidad_medida: rd.unidad_medida ?? null,
-    peso: rd.peso ?? null,
-    valor_mercancia: rd.valor_mercancia ?? null,
+    peso: vacioANull(rd.peso),
+    valor_mercancia: vacioANull(rd.valor_mercancia),
     remitente_tipo_id: rd.remitente_tipo_id ?? s.remitente_tipo_id ?? null,
     remitente_num_id: rd.remitente_num_id ?? s.remitente_num_id ?? null,
     destinatario_tipo_id: rd.destinatario_tipo_id ?? s.destinatario_tipo_id ?? null,
@@ -194,14 +203,14 @@ async function sembrarRemesa(conn: Queryable, solicitudId: number, rd: Row, s: R
     municipio_descargue: s.municipio_destino ?? null,
     propietario_tipo_id: rd.generador_tipo_id ?? s.generador_tipo_id ?? null,
     propietario_num_id: rd.generador_num_id ?? s.generador_num_id ?? null,
-    fecha_cita_cargue: rd.fecha_cita_cargue ?? null,
-    hora_cita_cargue: rd.hora_cita_cargue ?? null,
-    fecha_cita_descargue: rd.fecha_cita_descargue ?? null,
-    hora_cita_descargue: rd.hora_cita_descargue ?? null,
-    horas_pacto_cargue: rd.horas_pacto_cargue ?? null,
-    minutos_pacto_cargue: rd.minutos_pacto_cargue ?? null,
-    horas_pacto_descargue: rd.horas_pacto_descargue ?? null,
-    minutos_pacto_descargue: rd.minutos_pacto_descargue ?? null,
+    fecha_cita_cargue: vacioANull(rd.fecha_cita_cargue),
+    hora_cita_cargue: vacioANull(rd.hora_cita_cargue),
+    fecha_cita_descargue: vacioANull(rd.fecha_cita_descargue),
+    hora_cita_descargue: vacioANull(rd.hora_cita_descargue),
+    horas_pacto_cargue: vacioANull(rd.horas_pacto_cargue),
+    minutos_pacto_cargue: vacioANull(rd.minutos_pacto_cargue),
+    horas_pacto_descargue: vacioANull(rd.horas_pacto_descargue),
+    minutos_pacto_descargue: vacioANull(rd.minutos_pacto_descargue),
     dueno_poliza: s.dueno_poliza ?? 'N',
     codigo_un: codigoUn,
     estado_producto: estadoProducto,
@@ -275,7 +284,7 @@ export async function confirmarDespacho(id: number, datos: Row): Promise<void> {
     // 2) Read the full solicitud to feed remesas/manifiesto.
     const [sRows] = await conn.query<RowDataPacket[]>('SELECT * FROM solicitud_servicio WHERE id = ?', [id]);
     const s = sRows[0] as Row;
-    s.valor_anticipo = datos.valor_anticipo ?? null;
+    s.valor_anticipo = vacioANull(datos.valor_anticipo);
     s.cantidad_vehiculos = nuevosRestantes;
 
     // Company consecutivos (reserved on the same connection).

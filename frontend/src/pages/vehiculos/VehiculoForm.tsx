@@ -11,6 +11,7 @@ import { api, ApiError } from '../../lib/api';
 import { Autocomplete } from '../../components/Autocomplete';
 import { Alert } from '../../components/Alert';
 import type { Vehiculo, ConfiguracionVehiculo, AcItem } from '../../types';
+import { useEnvioUnico } from '../../lib/useEnvioUnico';
 
 interface FormState {
   placa: string;
@@ -57,6 +58,8 @@ export default function VehiculoForm() {
   const [labels, setLabels] = useState({ tenedor: '', propietario: '', conductor: '' });
   const [loading, setLoading] = useState(editar);
   const [saving, setSaving] = useState(false);
+  // Synchronous guard: ignores a second submit fired before React re-renders.
+  const envio = useEnvioUnico();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -108,6 +111,7 @@ export default function VehiculoForm() {
       setError('Elige el tenedor de la lista de terceros.');
       return;
     }
+    if (!envio.tomar()) return;
     setSaving(true);
     try {
       if (editar) await api(`/vehiculos/${id}`, { method: 'PUT', body: form });
@@ -117,6 +121,7 @@ export default function VehiculoForm() {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar el vehículo.');
     } finally {
       setSaving(false);
+      envio.soltar();
     }
   }
 

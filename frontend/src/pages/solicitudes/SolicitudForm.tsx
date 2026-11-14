@@ -20,6 +20,7 @@ import {
   calcularRetenciones,
 } from '../../lib/format';
 import type { AcItem, Producto } from '../../types';
+import { useEnvioUnico } from '../../lib/useEnvioUnico';
 
 /** Message shown/blocked when a dangerous product lacks UN + estado (mirrors the server). */
 const PELIGROSA_MSG =
@@ -88,6 +89,8 @@ export default function SolicitudForm() {
   const [labels, setLabels] = useState({ remitente: '', destinatario: '', generador: '', muniPago: '' });
   const [loading, setLoading] = useState(editar);
   const [saving, setSaving] = useState(false);
+  // Synchronous guard: ignores a second submit fired before React re-renders.
+  const envio = useEnvioUnico();
   const [error, setError] = useState<string | null>(null);
   // Non-null when Naturaleza = peligrosa and the chosen product lacks UN/estado.
   const [peligrosaAviso, setPeligrosaAviso] = useState<string | null>(null);
@@ -178,6 +181,7 @@ export default function SolicitudForm() {
       setError(contenedorAviso);
       return;
     }
+    if (!envio.tomar()) return;
     setSaving(true);
     try {
       const body = { ...f, ...ret };
@@ -195,6 +199,7 @@ export default function SolicitudForm() {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar la solicitud.');
     } finally {
       setSaving(false);
+      envio.soltar();
     }
   }
 

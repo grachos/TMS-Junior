@@ -13,6 +13,7 @@ import { Pagination } from '../../components/Pagination';
 import { Alert } from '../../components/Alert';
 import { StatusBadge } from '../../components/StatusBadge';
 import type { PagedResponse } from '../../types';
+import { useEnvioUnico } from '../../lib/useEnvioUnico';
 
 type Row = Record<string, any>;
 
@@ -40,6 +41,8 @@ export default function DespachosList() {
   const [motivo, setMotivo] = useState<MotivoAnulacion>('digitacion');
   const [observaciones, setObservaciones] = useState('');
   const [anulando, setAnulando] = useState(false);
+  // Synchronous guards per action/row: ignore a repeat click fired before React re-renders.
+  const envio = useEnvioUnico();
 
   const pagina = Math.max(1, Number.parseInt(params.get('p') ?? '1', 10) || 1);
   const search = params.get('q') ?? '';
@@ -73,6 +76,7 @@ export default function DespachosList() {
   }, []);
 
   async function procesar(manifiestoId: number) {
+    if (!envio.tomar(`procesar-${manifiestoId}`)) return;
     setSending(manifiestoId);
     setFlash(null);
     try {
@@ -83,6 +87,7 @@ export default function DespachosList() {
       setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo procesar el despacho.' });
     } finally {
       setSending(null);
+      envio.soltar(`procesar-${manifiestoId}`);
     }
   }
 
@@ -104,6 +109,7 @@ export default function DespachosList() {
 
   async function confirmarAnular() {
     if (!anularModal) return;
+    if (!envio.tomar('anular')) return;
     setAnulando(true);
     try {
       await api(`/despachos/${anularModal.manifiestoId}/anular`, {
@@ -120,10 +126,12 @@ export default function DespachosList() {
       setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo encolar la anulación.' });
     } finally {
       setAnulando(false);
+      envio.soltar('anular');
     }
   }
 
   async function consultarQr(manifiestoId: number) {
+    if (!envio.tomar(`qr-${manifiestoId}`)) return;
     setConsultandoQr(manifiestoId);
     setFlash(null);
     try {
@@ -134,6 +142,7 @@ export default function DespachosList() {
       setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo consultar el código QR.' });
     } finally {
       setConsultandoQr(null);
+      envio.soltar(`qr-${manifiestoId}`);
     }
   }
 

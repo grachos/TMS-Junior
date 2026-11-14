@@ -10,6 +10,7 @@ import { api, ApiError } from '../../lib/api';
 import { Alert } from '../../components/Alert';
 import { ESTADO_PRODUCTO } from './ProductosList';
 import type { Producto } from '../../types';
+import { useEnvioUnico } from '../../lib/useEnvioUnico';
 
 export default function ProductoForm() {
   const { codigo } = useParams();
@@ -19,6 +20,8 @@ export default function ProductoForm() {
   const [estado, setEstado] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Synchronous guard: ignores a second submit fired before React re-renders.
+  const envio = useEnvioUnico();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,6 +42,7 @@ export default function ProductoForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!envio.tomar()) return;
     setSaving(true);
     try {
       await api(`/productos/${encodeURIComponent(codigo!)}`, {
@@ -50,6 +54,7 @@ export default function ProductoForm() {
       setError(err instanceof ApiError ? err.message : 'No se pudo guardar el producto.');
     } finally {
       setSaving(false);
+      envio.soltar();
     }
   }
 
