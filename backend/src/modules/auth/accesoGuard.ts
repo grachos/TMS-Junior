@@ -93,13 +93,18 @@ export async function registrarIntento(
   return { id, bloqueo: null };
 }
 
+/** El intento sigue contando para la IP, pero deja de contar para la cuenta (reto fallido, no contraseña). */
+export async function quitarIdentificador(id: number): Promise<void> {
+  await db().query('UPDATE auth_intentos SET identificador_hash = NULL WHERE id = ?', [id]);
+}
+
 /** Un ingreso correcto reinicia el conteo de fallos de esa cuenta y purga lo viejo. */
 export async function marcarExito(id: number): Promise<void> {
   await db().query('UPDATE auth_intentos SET exito = 1 WHERE id = ?', [id]);
   await db().query('DELETE FROM auth_intentos WHERE created_at < NOW() - INTERVAL 2 DAY LIMIT 1000');
 }
 
-export type ResultadoAcceso = 'EXITO' | 'CREDENCIALES' | 'BLOQUEO_CUENTA' | 'BLOQUEO_IP' | 'SOLICITUD_INVALIDA';
+export type ResultadoAcceso = 'CAPTCHA_FALLIDO' | 'EXITO' | 'CREDENCIALES' | 'BLOQUEO_CUENTA' | 'BLOQUEO_IP' | 'SOLICITUD_INVALIDA';
 
 /** Auditoría del intento. Nunca debe tumbar el login: un fallo se registra en el log y ya. */
 export async function auditarAcceso(a: {

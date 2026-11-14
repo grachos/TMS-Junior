@@ -33,17 +33,20 @@ export function hashesDeIndex(rutaIndex: string): string[] {
   return existsSync(rutaIndex) ? hashesScriptsEnLinea(readFileSync(rutaIndex, 'utf8')) : [];
 }
 
-export function construirCsp(hashesScripts: string[]): string {
+export function construirCsp(hashesScripts: string[], turnstile = false): string {
+  // El widget de Cloudflare necesita su script, su iframe y su conexión; sin esto simplemente no aparece.
+  const CF = turnstile ? ' https://challenges.cloudflare.com' : '';
   return [
     "default-src 'self'",
-    `script-src 'self' ${hashesScripts.join(' ')}`.trim(),
+    `script-src 'self' ${hashesScripts.join(' ')}${CF}`.trim(),
+    ...(turnstile ? [`frame-src 'self'${CF}`] : []),
     // Los estilos en línea de React/Leaflet y el splash lo requieren.
     "style-src 'self' 'unsafe-inline'",
     // Mapa: teselas de OpenStreetMap; PDFs/QR: data: y blob:.
     "img-src 'self' data: blob: https://*.tile.openstreetmap.org",
     "font-src 'self' data:",
     // Búsqueda de direcciones del mapa.
-    "connect-src 'self' https://nominatim.openstreetmap.org",
+    `connect-src 'self' https://nominatim.openstreetmap.org${CF}`,
     "worker-src 'self'",
     "manifest-src 'self'",
     "object-src 'none'",
@@ -54,10 +57,10 @@ export function construirCsp(hashesScripts: string[]): string {
 }
 
 /** Cabecera y valor según el modo, o null si está apagada. */
-export function cabeceraCsp(modo: CspModo, hashesScripts: string[]): { nombre: string; valor: string } | null {
+export function cabeceraCsp(modo: CspModo, hashesScripts: string[], turnstile = false): { nombre: string; valor: string } | null {
   if (modo === 'off') return null;
   return {
     nombre: modo === 'enforce' ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
-    valor: construirCsp(hashesScripts),
+    valor: construirCsp(hashesScripts, turnstile),
   };
 }

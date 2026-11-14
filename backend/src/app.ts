@@ -41,7 +41,7 @@ export function createApp() {
   // (y req.secure respeta X-Forwarded-Proto). Los límites por IP y la auditoría dependen de esto.
   if (trustProxy > 0) app.set('trust proxy', trustProxy);
   const __dirnameCsp = path.dirname(fileURLToPath(import.meta.url));
-  const csp = cabeceraCsp(cspModoDe(cspModo), hashesDeIndex(path.join(__dirnameCsp, '..', '..', 'frontend', 'dist', 'index.html')));
+  const csp = cabeceraCsp(cspModoDe(cspModo), hashesDeIndex(path.join(__dirnameCsp, '..', '..', 'frontend', 'dist', 'index.html')), config().turnstile.enforce);
 
   // Canonical host: redirect www.* to the bare host. The TLS certificate covers
   // tmslight.techcol-service.cc but NOT www.tmslight...; because PDF previews use

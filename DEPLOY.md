@@ -239,6 +239,18 @@ AUTH_CUENTA_FALLOS_MAX=5
 AUTH_IP_FALLOS_MAX=20
 AUTH_IP_TOTAL_MAX=60
 
+# --- Cloudflare Turnstile en el login (captcha) ---
+# APAGADO por defecto: un sitio sin claves no queda bloqueado al recibir el código.
+# Para activarlo, en ESTE ORDEN: (1) crea el widget en Cloudflare con el dominio del sitio,
+# (2) pon estas 4 variables, (3) reinicia la app y prueba el ingreso.
+TURNSTILE_SITE_KEY=<clave pública del widget>
+TURNSTILE_SECRET_KEY=<clave SECRETA del widget; solo aquí, nunca en el repositorio ni en el chat>
+TURNSTILE_ALLOWED_HOSTNAMES=<dominio de ESTE sitio, sin https://, p. ej. tmslight.techcol-service.cc>
+TURNSTILE_ENFORCE=true
+# PALANCA DE EMERGENCIA: si por cualquier motivo nadie puede ingresar, pon TURNSTILE_ENFORCE=false
+# y reinicia la app; el login deja de exigir el reto y la pantalla no muestra el widget.
+# Con ENFORCE=true el servidor FALLA CERRADO: sin clave secreta o sin dominios rechaza todo.
+
 DB_HOST=localhost
 DB_PORT=3306
 DB_NAME=uXXXX_light_tms
