@@ -135,7 +135,8 @@ describe.skipIf(!RUN)('seguridad del login', () => {
     expect(http.headers.get('permissions-policy')).toContain('camera=()');
     expect(http.headers.get('strict-transport-security')).toBeNull();
     expect(http.headers.get('content-security-policy-report-only')).toContain("default-src 'self'");
-    expect(http.headers.get('content-security-policy')).toBeNull();
+    // (Sin frontend compilado, el 404 de Express trae su propia CSP "default-src 'none'"; lo que importa es que NO sea la política de la app aplicada.)
+    expect(http.headers.get('content-security-policy') ?? '').not.toContain('script-src');
     const https = await fetch(`${base}/no-existe`, { headers: { 'X-Forwarded-Proto': 'https' } });
     expect(https.headers.get('strict-transport-security')).toMatch(/max-age=\d+/);
     // La API no lleva CSP (es JSON).
