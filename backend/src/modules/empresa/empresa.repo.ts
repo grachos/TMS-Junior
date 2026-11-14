@@ -79,7 +79,9 @@ export async function guardar(datos: Partial<Empresa>, exec: Queryable = db()): 
         :emf, :consecutivo_remesa, :consecutivo_manifiesto)
      ON DUPLICATE KEY UPDATE
         tipo_id = VALUES(tipo_id), nit = VALUES(nit),
-        rndc_username = VALUES(rndc_username), rndc_password = VALUES(rndc_password),
+        rndc_username = VALUES(rndc_username),
+        -- Empty password in the form = keep the current one (the form never receives it).
+        rndc_password = COALESCE(VALUES(rndc_password), rndc_password),
         razon_social = VALUES(razon_social), direccion = VALUES(direccion), telefono = VALUES(telefono),
         cod_municipio = VALUES(cod_municipio), municipio_nombre = VALUES(municipio_nombre),
         nro_poliza = VALUES(nro_poliza),
