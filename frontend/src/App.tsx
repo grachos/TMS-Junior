@@ -9,7 +9,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShell } from './components/AppShell';
 import { SplashController } from './components/Splash';
-import { useAuthStore, type Pagina } from './store/auth';
+import { useAuthStore, useCan, type Pagina } from './store/auth';
 import Login from './pages/Login';
 import Inicio from './pages/Inicio';
 import TercerosList from './pages/terceros/TercerosList';
@@ -35,9 +35,10 @@ import ImpuestosPage from './pages/impuestos/ImpuestosPage';
 
 /** Redirects home if the current user can't access `pagina` (admin always can). */
 function PageGuard({ pagina, adminOnly, accion, children }: { pagina?: Pagina; adminOnly?: boolean; accion?: string; children: React.ReactNode }) {
-  const canAccess = useAuthStore((s) => s.canAccess);
+  useAuthStore((s) => s.user); // re-evaluar cuando llegan permisos nuevos
+  const canAccess = useAuthStore.getState().canAccess;
   const isAdmin = useAuthStore((s) => s.isAdmin());
-  const can = useAuthStore((s) => s.can);
+  const can = useCan();
   if (accion && !can(accion)) return <Navigate to="/" replace />;
   if (adminOnly && !isAdmin) return <Navigate to="/" replace />;
   if (pagina && !canAccess(pagina)) return <Navigate to="/" replace />;

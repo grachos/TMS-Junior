@@ -73,3 +73,14 @@ export const useAuthStore = create<AuthState>()(
     { name: 'tms-auth', partialize: (s) => ({ token: s.token, user: s.user }) },
   ),
 );
+
+/**
+ * `can` es una función estable: seleccionarla NO vuelve a dibujar el componente
+ * cuando cambia el usuario (por ejemplo cuando /auth/me trae los permisos
+ * nuevos justo después de abrir la pantalla). Este hook se suscribe al usuario
+ * para que los botones se muestren u oculten en cuanto llegan los permisos.
+ */
+export function useCan(): (accion: Accion) => boolean {
+  useAuthStore((s) => s.user);
+  return useAuthStore.getState().can;
+}

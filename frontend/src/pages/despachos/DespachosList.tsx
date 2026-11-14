@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Truck, Search, Send, Loader2, FileText, FileSpreadsheet, FileCheck2, Pencil, QrCode, Ban, X, TriangleAlert } from 'lucide-react';
 import { api, ApiError, openAuthedFile } from '../../lib/api';
-import { useAuthStore } from '../../store/auth';
+import { useCan } from '../../store/auth';
 import { Pagination } from '../../components/Pagination';
 import { Alert } from '../../components/Alert';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -26,7 +26,7 @@ interface PreviewAnulacion {
 }
 
 export default function DespachosList() {
-  const can = useAuthStore((s) => s.can);
+  const can = useCan();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState<PagedResponse<Row> | null>(null);
