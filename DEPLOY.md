@@ -121,6 +121,7 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v53_solicitud_interna.sql   ← NUEVO — solicitudes internas (nada viaja al RNDC). CORRER ANTES de desplegar el código (agrega el estado 'interno'); revisa antes los dos SELECT que trae en su encabezado
    migracion_v54_permisos_acciones.sql   ← NUEVO — permisos por acción (botones críticos) por usuario. CORRER ANTES de desplegar el código; no cambia el comportamiento de nadie hasta que un admin configure una lista
    migracion_v55_seguridad_acceso.sql   ← NUEVO — límites por IP/cuenta y auditoría de accesos del login. CORRER ANTES de desplegar el código; sin ella el login usa el límite anterior por correo (y avisa en el log)
+   migracion_v56_recuperar_contrasena.sql   ← NUEVO — "Olvidé mi contraseña" por correo (enlaces de un solo uso y límites). CORRER ANTES de desplegar el código; sin ella solo falla esa función, el login sigue igual
    productos.sql   ← SIEMPRE AL FINAL: catálogo de productos (solo carga si la tabla está vacía)
    ```
 
@@ -239,8 +240,24 @@ AUTH_CUENTA_FALLOS_MAX=5
 AUTH_IP_FALLOS_MAX=20
 AUTH_IP_TOTAL_MAX=60
 
+# --- Recuperar contraseña por correo ("Olvidé mi contraseña") ---
+# Dirección pública del sitio, con https y sin barra final. El enlace del correo se arma con ESTO
+# (no con el encabezado Host de la petición, que un atacante podría falsear).
+APP_URL=https://tu-dominio.com
+# Buzón desde el que se envía (en Hostinger: crea un buzón, p. ej. no-responder@tu-dominio.com, y usa
+# su servidor SMTP: smtp.hostinger.com, puerto 465).
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=465
+SMTP_USER=no-responder@tu-dominio.com
+SMTP_PASS=<contraseña del buzón; solo aquí, nunca en el repositorio ni en el chat>
+SMTP_FROM="Konekto <no-responder@tu-dominio.com>"
+# Sin SMTP_* o sin APP_URL el sistema responde igual ("si el correo existe, te enviamos un enlace")
+# pero NO envía nada, y lo avisa en el log del servidor. Cada usuario necesita un correo REAL en
+# Usuarios (un correo como admin@tms.local no recibe nada).
+
 # --- Cloudflare Turnstile en el login (captcha) ---
 # APAGADO por defecto: un sitio sin claves no queda bloqueado al recibir el código.
+# También protege "Olvidé mi contraseña" y "Restablecer" (acciones forgot_password / reset_password).
 # Para activarlo, en ESTE ORDEN: (1) crea el widget en Cloudflare con el dominio del sitio,
 # (2) pon estas 4 variables, (3) reinicia la app y prueba el ingreso.
 TURNSTILE_SITE_KEY=<clave pública del widget>

@@ -50,6 +50,8 @@ export interface AppConfig {
   /** Detrás de cuántos proxies está (para leer la IP real del visitante) y modo de la CSP. */
   seguridad: { trustProxy: number; cspModo: string };
   /** Cloudflare Turnstile en el login. enforce=false es la palanca de emergencia (y el estado de un sitio aún sin claves). */
+  /** Envío de correo (recuperar contraseña). Sin SMTP_HOST el correo no se envía (se avisa en el log). */
+  correo: { appUrl: string; host: string; port: number; secure: boolean; user: string; pass: string; from: string };
   turnstile: { enforce: boolean; siteKey: string; secretKey: string; allowedHostnames: string[] };
   db: { host: string; port: number; name: string; user: string; pass: string; charset: string };
   /** Read-only DB user for the chatbot (least privilege). Falls back to the main user. */
@@ -96,6 +98,17 @@ export function config(): AppConfig {
       // Hostinger pone UN proxy delante de la app. 0 = sin proxy (la IP es la de la conexión).
       trustProxy: int('TRUST_PROXY', 1),
       cspModo: str('CSP_MODO', 'report'),
+    },
+    correo: {
+      // Dirección pública del sitio (https://...): con ella se arma el enlace del correo. NO se toma del
+      // encabezado Host de la petición (un atacante podría fabricar enlaces hacia su propio sitio).
+      appUrl: str('APP_URL', '').replace(/\/+$/, ''),
+      host: str('SMTP_HOST', ''),
+      port: int('SMTP_PORT', 465),
+      secure: bool('SMTP_SECURE', int('SMTP_PORT', 465) === 465),
+      user: str('SMTP_USER', ''),
+      pass: str('SMTP_PASS', ''),
+      from: str('SMTP_FROM', str('SMTP_USER', '')),
     },
     turnstile: {
       // Apagado por defecto: un sitio sin claves no debe quedar bloqueado al recibir el código.

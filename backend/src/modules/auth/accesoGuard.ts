@@ -104,7 +104,7 @@ export async function marcarExito(id: number): Promise<void> {
   await db().query('DELETE FROM auth_intentos WHERE created_at < NOW() - INTERVAL 2 DAY LIMIT 1000');
 }
 
-export type ResultadoAcceso = 'CAPTCHA_FALLIDO' | 'EXITO' | 'CREDENCIALES' | 'BLOQUEO_CUENTA' | 'BLOQUEO_IP' | 'SOLICITUD_INVALIDA';
+export type ResultadoAcceso = 'RECUPERACION_SOLICITADA' | 'RECUPERACION_LIMITE' | 'RECUPERACION_COMPLETADA' | 'RECUPERACION_INVALIDA' | 'CAPTCHA_FALLIDO' | 'EXITO' | 'CREDENCIALES' | 'BLOQUEO_CUENTA' | 'BLOQUEO_IP' | 'SOLICITUD_INVALIDA';
 
 /** Auditoría del intento. Nunca debe tumbar el login: un fallo se registra en el log y ya. */
 export async function auditarAcceso(a: {

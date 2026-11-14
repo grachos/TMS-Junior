@@ -32,6 +32,8 @@ import UsuariosList from './pages/usuarios/UsuariosList';
 import UsuarioForm from './pages/usuarios/UsuarioForm';
 import ActividadPage from './pages/actividad/ActividadPage';
 import ImpuestosPage from './pages/impuestos/ImpuestosPage';
+import RecuperarPage from './pages/RecuperarPage';
+import RestablecerPage from './pages/RestablecerPage';
 
 /** Redirects home if the current user can't access `pagina` (admin always can). */
 function PageGuard({ pagina, adminOnly, accion, children }: { pagina?: Pagina; adminOnly?: boolean; accion?: string; children: React.ReactNode }) {
@@ -61,6 +63,8 @@ export default function App() {
     <SplashController />
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/recuperar" element={<RecuperarPage />} />
+      <Route path="/restablecer" element={<RestablecerPage />} />
 
       <Route path="/" element={<Shell><Inicio /></Shell>} />
       <Route path="/solicitudes" element={<Shell pagina="solicitudes"><SolicitudesList /></Shell>} />

@@ -2,7 +2,7 @@
  * Light TMS - Auth routes: login + current user.
  */
 
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { AppError, asyncHandler, badRequest, unauthorized } from '../../http/errors.js';
@@ -15,6 +15,7 @@ import {
 } from './accesoGuard.js';
 import { signToken } from './jwt.js';
 import { config } from '../../config/env.js';
+import { MIN_PASSWORD, restablecerContrasena, solicitarRecuperacion } from './recuperacion.js';
 import { MENSAJES_CAPTCHA, verifyTurnstile } from './turnstile.js';
 import { requireAuth } from './auth.middleware.js';
 
@@ -116,6 +117,55 @@ authRouter.post(
     await auditarAcceso({ ip, userAgent, identificadorHash, usuarioId: user.id, resultado: 'EXITO' });
     const token = signToken({ sub: user.id, email: user.email, nombre: user.nombre, rol: user.rol, paginas: user.paginas });
     res.json({ token, user: toPublic(user) });
+  }),
+);
+
+/** Exige el reto anti-bots (si está activo) con la acción de ESTE formulario. */
+async function exigirReto(req: Request, accion: string): Promise<void> {
+  if (!config().turnstile.enforce) return;
+  const reto = await verifyTurnstile(req.body?.['cf-turnstile-response'], accion, req.ip);
+  if (!reto.ok) throw new AppError(403, MENSAJES_CAPTCHA[reto.code]);
+}
+
+const olvideSchema = z.object({ email: z.string().trim().email('Correo inválido.') });
+
+/**
+ * POST /api/auth/forgot-password -> 204 SIEMPRE (exista o no la cuenta). Manda un enlace de un solo
+ * uso al correo de una cuenta activa. Solo responde distinto si la IP abusa (429) o el reto falla (403).
+ */
+authRouter.post(
+  '/forgot-password',
+  asyncHandler(async (req, res) => {
+    const parsed = olvideSchema.safeParse(req.body);
+    if (!parsed.success) throw badRequest('Escribe un correo válido.');
+    await exigirReto(req, 'forgot_password');
+    const r = await solicitarRecuperacion(parsed.data.email, req.ip ?? 'desconocida', req.get('user-agent') ?? null);
+    if (r === 'LIMITE_IP') {
+      res.setHeader('Retry-After', '3600');
+      throw new AppError(429, 'Demasiadas solicitudes desde esta conexión. Intenta de nuevo en un rato.');
+    }
+    res.status(204).end();
+  }),
+);
+
+const restablecerSchema = z.object({
+  token: z.string().min(20).max(200),
+  password: z.string().min(MIN_PASSWORD, `La contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`).max(200),
+});
+
+/** POST /api/auth/reset-password { token, password } -> 204 | 400 (enlace no válido o vencido). */
+authRouter.post(
+  '/reset-password',
+  asyncHandler(async (req, res) => {
+    const parsed = restablecerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const falta = parsed.error.issues.find((i) => i.path[0] === 'password');
+      throw badRequest(falta?.message ?? 'El enlace no es válido o venció. Solicita uno nuevo.');
+    }
+    await exigirReto(req, 'reset_password');
+    const r = await restablecerContrasena(parsed.data.token, parsed.data.password, req.ip ?? 'desconocida', req.get('user-agent') ?? null);
+    if (r !== 'OK') throw badRequest('El enlace no es válido o venció. Solicita uno nuevo.');
+    res.status(204).end();
   }),
 );
 
