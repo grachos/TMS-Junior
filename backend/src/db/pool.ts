@@ -58,6 +58,11 @@ export function dbReadonly(): Pool {
     decimalNumbers: false,
     dateStrings: true,
   });
+  // DEFENSA EN PROFUNDIDAD: cada conexión de este pool arranca en modo SOLO LECTURA. Aunque por falta de un usuario
+  // de BD de solo lectura se usen las credenciales principales, una escritura falla (error 1792) en vez de ejecutarse.
+  readonlyPoolInstance.pool.on('connection', (conn) => {
+    conn.query('SET SESSION TRANSACTION READ ONLY', () => undefined);
+  });
   return readonlyPoolInstance;
 }
 

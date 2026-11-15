@@ -2,6 +2,7 @@
  * Light TMS - HTTP server entrypoint.
  */
 
+import { verificarChatAlArrancar } from './modules/chat/chat.arranque.js';
 import { verificarPropietarioAlArrancar } from './modules/auth/propietario.guard.js';
 import { createApp } from './app.js';
 import { config } from './config/env.js';
@@ -38,5 +39,8 @@ void crearPrimerAdminSiFalta({
 
 // Soporte: informa en el log si el vínculo del propietario es válido (no imprime el uuid).
 void verificarPropietarioAlArrancar();
+
+// Chat de datos: avisa si usa las credenciales principales de la base (sin usuario de solo lectura aparte).
+verificarChatAlArrancar();
 
 iniciarWatcherPush();

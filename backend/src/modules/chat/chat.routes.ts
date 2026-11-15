@@ -9,20 +9,24 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import { asyncHandler, badRequest } from '../../http/errors.js';
+import { AppError, asyncHandler, badRequest } from '../../http/errors.js';
 import { config } from '../../config/env.js';
 import { responder } from './chat.service.js';
+import { contextoDe } from './herramientas.js';
 
 export const chatRouter = Router();
 
+// `.strict()`: el navegador no puede mandar `rol`, `paginas`, `userId` ni nada que parezca identidad o permisos (400).
+// El historial es solo texto de conversación (acotado); jamás decide permisos.
 const esquema = z.object({
   pregunta: z.string().trim().min(1, 'Escribe una pregunta.').max(1000, 'Pregunta demasiado larga.'),
   historial: z
-    .array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() }))
+    .array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(2000) }).strict())
     .max(20)
     .optional(),
-});
+}).strict();
 
+// Rate-limit en MEMORIA por proceso (límite conocido: no se comparte entre procesos ni sobrevive a un reinicio; pendiente de pasar a la base).
 // Rate-limit en memoria: máx. N peticiones por usuario en una ventana.
 const VENTANA_MS = 60_000;
 const MAX_POR_VENTANA = 12;
@@ -53,13 +57,14 @@ chatRouter.post(
     }
     const userId = req.user?.sub ?? 0;
     if (limitado(userId)) {
-      throw badRequest('Demasiadas preguntas seguidas. Espera un momento e inténtalo de nuevo.');
+      throw new AppError(429, 'Demasiadas preguntas seguidas. Espera un momento e inténtalo de nuevo.');
     }
 
     const parsed = esquema.safeParse(req.body);
     if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Datos inválidos.');
 
-    const respuesta = await responder(parsed.data.pregunta, parsed.data.historial ?? []);
+    // Identidad y permisos del SERVIDOR (req.user lo relee requireAuth de la base en cada petición).
+    const respuesta = await responder(contextoDe(req.user!), parsed.data.pregunta, parsed.data.historial ?? []);
     res.json({ respuesta });
   }),
 );
