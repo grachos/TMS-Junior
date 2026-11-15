@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { IncidentesPanel } from './IncidentesPanel';
 import { LifeBuoy, Loader2, ShieldCheck } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { Alert } from '../../components/Alert';
@@ -9,7 +10,7 @@ import { useEnvioUnico } from '../../lib/useEnvioUnico';
  * Consola de soporte y mantenimiento (privada del propietario de la plataforma).
  * Fase 1: identidad y protección de la cuenta. Las herramientas de incidentes llegan en las siguientes fases.
  */
-export default function SoportePage() {
+function CuentaPanel() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const envio = useEnvioUnico();
@@ -60,9 +61,6 @@ export default function SoportePage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="mb-4 flex items-center gap-2 text-xl font-semibold text-slate-800">
-        <LifeBuoy size={22} className="text-celeste-600" /> Soporte
-      </h1>
       {flash && <Alert kind={flash.kind} message={flash.message} onClose={() => setFlash(null)} />}
 
       <div className="card mb-5 flex items-start gap-3">
@@ -105,6 +103,27 @@ export default function SoportePage() {
         </div>
         <p className="text-xs text-slate-400">Cambiar el correo o la contraseña cierra todas tus sesiones abiertas.</p>
       </form>
+    </div>
+  );
+}
+
+/** Consola de soporte (privada del propietario): incidentes y mi cuenta. */
+export default function SoportePage() {
+  const [pestana, setPestana] = useState<'incidentes' | 'cuenta'>('incidentes');
+  return (
+    <div>
+      <h1 className="mb-4 flex items-center gap-2 text-xl font-semibold text-slate-800">
+        <LifeBuoy size={22} className="text-celeste-600" /> Soporte
+      </h1>
+      <div className="mb-4 flex gap-1 border-b border-slate-200" role="tablist">
+        {([['incidentes', 'Incidentes'], ['cuenta', 'Mi cuenta']] as const).map(([id, l]) => (
+          <button key={id} role="tab" aria-selected={pestana === id} onClick={() => setPestana(id)}
+            className={`px-4 py-2 text-sm font-medium ${pestana === id ? 'border-b-2 border-celeste-600 text-celeste-700' : 'text-slate-500 hover:text-slate-700'}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+      {pestana === 'incidentes' ? <IncidentesPanel /> : <CuentaPanel />}
     </div>
   );
 }

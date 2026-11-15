@@ -129,8 +129,33 @@ responden con error; el resto de la app sigue.
 el diagnóstico automático y la explicación con IA llegan en la fase 3. El chat de datos actual **no** se tocó: la corrección de su
 contexto de autorización es de la fase 3, antes de darle herramientas.
 
+## Fase 2b — interfaz (reportar, seguir el estado y consola)
+
+- **Asistente con tres pestañas** (`ChatWidget`): **Reportar** (siempre disponible, no depende del chat de IA), **Mis reportes** (estado real y la
+  explicación en 5 partes) y **Consultar datos** (el chat de siempre; solo aparece si el backend lo informa habilitado; su comportamiento no cambió).
+  El botón muestra una marca con las novedades que aún no viste (comodidad por navegador, no fuente de verdad).
+- **Las 5 partes siempre se distinguen**: lo que observamos · posible causa · causa confirmada (solo con evidencia) · qué puedes hacer mientras
+  tanto · estado de la corrección. Lo que nadie ha completado se muestra como "todavía no hay información": no se inventa ni se promete nada;
+  sin recomendación, la pantalla dice que antes de repetir la operación se revise si quedó registrada.
+- **Reportar con contexto**: se adjunta la pantalla actual y, si hubo un error del servidor hace poco, su `X-Request-Id` para atar el reporte a ese
+  incidente. La pantalla de error trae el botón "Reportar el problema" (abre el reporte prellenado).
+- **Error Boundary** dentro de `<BrowserRouter>`, por pantalla y con reinicio al cambiar de ruta: un error de una pantalla no tumba el menú ni el
+  asistente. Hay uno global de último recurso en `main.tsx`.
+- **Telemetría del navegador** (`lib/telemetria.ts`, fábrica pura probada sin navegador): solo con sesión; sin conexión no reporta; descarta ruido
+  (red, cancelaciones, extensiones, la propia telemetría); deduplica; tope por carga de página; una sola llamada en vuelo; usa `fetch` directo;
+  nunca lanza ni se reporta a sí misma; `api()` no reporta las llamadas a `/reportes`. Reporta errores no controlados, de React y respuestas 5xx.
+- **Consola del propietario** (Soporte → Incidentes): filtros, severidad, frecuencia, reportes, estado y tipo; detalle con evidencia sanitizada,
+  historial, reportes de usuarios, mensajes **internos o públicos** (un público puede ir a todos los reportes o a uno), explicación pública de 5
+  campos y la opción "Avisar a quienes reportaron" (solo si el estado cambia y quedó guardado).
+- **Pendiente para las siguientes fases**: ejecuciones y consumo del agente, diff/PR/commit, estado por sitio, política de autonomía, pausa global,
+  reintento y escalamiento (no hay nada de eso todavía, por eso la consola no los muestra).
+
+Verificado en Chromium (app compilada, CSP en modo bloqueo, chat de IA apagado): reporte → vista del propietario → cambio de estado con aviso →
+novedad en el botón del usuario; pantalla de error con menú vivo y reporte prellenado; telemetría de error de React y de un 500 con su id de
+correlación; el login no envía telemetría; 0 violaciones de CSP.
+
 ## Siguientes fases (en pruebas primero)
 
-2b. Interfaz: Error Boundary, telemetría del navegador, pestaña de reporte en el widget y consola · 3. Diagnóstico por reglas y explicación ·
+3. Diagnóstico por reglas y explicación ·
 4. Corrección con PR en un entorno aislado (GitHub Actions) · 5. Integración automática al sitio de pruebas.
 El chat actual de datos **no** tiene herramientas técnicas: cuando las haya, vivirán solo en el contexto del propietario.
