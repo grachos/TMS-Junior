@@ -59,8 +59,8 @@ jobs:
       - run: npm ci
         if: steps.cfg.outputs.listo == 'true'
 
-      # FIJAR a un SHA de commit tras revisarlo (el tag v1 es móvil). Ver docs/SOPORTE.md.
-      - uses: anthropics/claude-code-action@v1
+      # Fijada al commit de la etiqueta v1 (el tag es móvil). Para actualizar: `git ls-remote https://github.com/anthropics/claude-code-action "refs/tags/v1*"` y usar la línea con ^{}.
+      - uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1
         if: steps.cfg.outputs.listo == 'true'
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
