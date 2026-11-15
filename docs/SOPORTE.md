@@ -209,13 +209,13 @@ Las herramientas **exclusivas del propietario** (diagnóstico, evidencias, confi
 
 Motor **determinista** (sin IA): `backend/src/modules/diagnostico/`. Se ejecuta solo, en segundo plano, cuando un incidente es **nuevo o se reabre**, y a mano con "Diagnosticar ahora" (solo propietario).
 
-- **Confianza la decide el código**, nunca un modelo: `confirmada` solo si la regla comprobó el estado *actual* (p. ej. la tabla/columna sigue ausente en `information_schema`, la variable sigue sin definir); `probable` si hay indicios; `sin_evidencia` en otro caso. Un error de código nunca es "confirmado".
+- **Confianza la decide el código**, nunca un modelo: `confirmada` solo si la regla comprobó el estado *actual* (p. ej. la tabla/columna sigue ausente en `information_schema`, la variable sigue sin definir); `probable` si hay indicios; `insuficiente` en otro caso. Un error de código nunca es "confirmado".
 - **Reglas** (`reglas.ts`, versión `VERSION_REGLAS`): migración pendiente (índice de migraciones generado en el build: `dist/migraciones-indice.json`), configuración, RNDC (caída del RNDC → no se toca código; consulta solo `ultimo_error`/estado de `cola_envios` y el catálogo `error_rndc`), infraestructura, proveedor de IA, código (versión/regresión), reportes de usuarios.
 - **Solo lectura**: las comprobaciones corren en `START TRANSACTION READ ONLY`. No reenvía documentos, no anula, no cambia estados operativos, no llama al RNDC ni al proveedor de IA.
 - **Efectos sobre el incidente**: `nuevo → en_diagnostico` (condicional; no pisa lo que el propietario ya movió). `corregible` solo **baja** (nunca sube) y solo con diagnóstico confirmado; una migración confirmada reclasifica `codigo → migracion`.
 - **Borrador público**: plantillas fijas por categoría+confianza (sin rutas, ids, códigos ni texto de la evidencia). "Usar como explicación pública" llena solo campos vacíos (o sobrescribe si se pide) y se calcula en el servidor con la categoría y confianza guardadas. **No notifica** a nadie.
 - Se guardan hasta 5 diagnósticos por incidente (`incidente_diagnosticos`, migración v59, repetible).
-- Límites: sin IA no explica errores nuevos; lo no reconocido queda `sin_evidencia` y pasa al propietario.
+- Límites: sin IA no explica errores nuevos; lo no reconocido queda `insuficiente` y pasa al propietario.
 
 ## Fase 3c — explicación con IA (borrador)
 

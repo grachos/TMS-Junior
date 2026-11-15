@@ -32,11 +32,11 @@ interface Detalle {
 }
 
 interface Diagnostico {
-  id: number; categoria: string; confianza: 'confirmada' | 'probable' | 'sin_evidencia'; corregible_con_codigo: number | null; resumen: string;
+  id: number; categoria: string; confianza: 'confirmada' | 'probable' | 'insuficiente'; corregible_con_codigo: number | null; resumen: string;
   posible_causa: string | null; causa_confirmada: string | null; accion_temporal: string | null; siguiente_paso: string | null;
   hechos: { texto: string; fuente: string; observadoEn?: string }[]; referencias: { tipo?: string; valor?: string }[]; version_reglas: string; aplicado_en: string | null; created_at: string;
 }
-const COLOR_CONF: Record<string, string> = { confirmada: 'bg-emerald-100 text-emerald-800', probable: 'bg-amber-100 text-amber-800', sin_evidencia: 'bg-slate-100 text-slate-600' };
+const COLOR_CONF: Record<string, string> = { confirmada: 'bg-emerald-100 text-emerald-800', probable: 'bg-amber-100 text-amber-800', insuficiente: 'bg-slate-100 text-slate-600' };
 
 const fecha = (v: string) => new Date(String(v).replace(' ', 'T')).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
 
@@ -267,7 +267,7 @@ function DetalleIncidente({ id, alCambiar }: { id: number; alCambiar: () => void
           {(d.diagnosticos ?? []).map((g, n) => (
             <li key={g.id} className="rounded-lg border border-slate-200 p-3 text-sm">
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className={`rounded-full px-2 py-0.5 font-semibold ${COLOR_CONF[g.confianza] ?? ''}`}>{g.confianza.replace('_', ' ')}</span>
+                <span className={`rounded-full px-2 py-0.5 font-semibold ${COLOR_CONF[g.confianza] ?? ''}`}>{g.confianza}</span>
                 <span className="text-slate-500">{g.categoria} · reglas v{g.version_reglas} · {fecha(g.created_at)}{n === 0 ? ' · más reciente' : ''}{g.aplicado_en ? ' · usado como explicación' : ''}</span>
               </div>
               <p className="mt-2 text-slate-800">{g.resumen}</p>
