@@ -15,6 +15,7 @@ import {
 } from './accesoGuard.js';
 import { signToken } from './jwt.js';
 import { config } from '../../config/env.js';
+import { capacidadesDe } from './propietario.guard.js';
 import { MIN_PASSWORD, restablecerContrasena, solicitarRecuperacion } from './recuperacion.js';
 import { MENSAJES_CAPTCHA, verifyTurnstile } from './turnstile.js';
 import { requireAuth } from './auth.middleware.js';
@@ -115,8 +116,8 @@ authRouter.post(
     if (intentoId !== null) await marcarExito(intentoId);
     if (intentoLegacyId !== null) await marcarIntentoExitosoLegacy(intentoLegacyId);
     await auditarAcceso({ ip, userAgent, identificadorHash, usuarioId: user.id, resultado: 'EXITO' });
-    const token = signToken({ sub: user.id, email: user.email, nombre: user.nombre, rol: user.rol, paginas: user.paginas });
-    res.json({ token, user: toPublic(user) });
+    const token = signToken({ sub: user.id, email: user.email, nombre: user.nombre, rol: user.rol, paginas: user.paginas, sv: user.sesion_version ?? 0 });
+    res.json({ token, user: toPublic(user), capabilities: await capacidadesDe(user.id, user.sesion_version ?? 0) });
   }),
 );
 
@@ -176,6 +177,6 @@ authRouter.get(
   asyncHandler(async (req, res) => {
     const user = await findById(req.user!.sub);
     if (!user || !user.activo) throw unauthorized('Cuenta inactiva.');
-    res.json({ user: toPublic(user) });
+    res.json({ user: toPublic(user), capabilities: await capacidadesDe(user.id, req.user!.sv ?? 0) });
   }),
 );

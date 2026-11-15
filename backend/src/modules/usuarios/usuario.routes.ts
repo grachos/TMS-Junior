@@ -11,12 +11,12 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
+import { asyncHandler, badRequest, forbidden, notFound } from '../../http/errors.js';
 import { requireRole } from '../auth/auth.middleware.js';
 import { withTransaction } from '../../db/pool.js';
 import { actorDe, auditar, cambios } from '../auditoria/auditoria.repo.js';
 import { ACCIONES, ACCIONES_DEF, ACCIONES_POR_DEFECTO } from '../auth/permisos.js';
-import { PAGINAS, type Pagina, createUser, updateUser, listUsers, emailExists, findById, toPublic } from '../auth/auth.repo.js';
+import { PAGINAS, type Pagina, createUser, updateUser, esCuentaPropietario, listUsers, emailExists, findById, toPublic } from '../auth/auth.repo.js';
 
 export const usuarioRouter = Router();
 
@@ -69,6 +69,17 @@ usuarioRouter.get(
 const paginasSchema = z.array(z.enum(PAGINAS)).nullable();
 const accionesSchema = z.array(z.enum(ACCIONES)).nullable();
 
+/**
+ * Campos reservados: pertenecen al sistema (identidad, propiedad, sesiones). Si llegan en un cuerpo se rechaza la
+ * petición (400), no se ignoran en silencio. Los esquemas además son `.strict()`: ningún campo fuera de la lista.
+ */
+const CAMPOS_RESERVADOS = ['uuid', 'id', 'owner', 'isowner', 'is_owner', 'propietario', 'platformowner', 'supportowner', 'sesion_version', 'sv', 'protegido', 'capabilities', 'permisos'];
+function rechazarCamposReservados(body: unknown): void {
+  if (!body || typeof body !== 'object') return;
+  const usados = Object.keys(body as Record<string, unknown>).filter((k) => CAMPOS_RESERVADOS.includes(k.toLowerCase()));
+  if (usados.length) throw badRequest(`Campo no permitido: ${usados.join(', ')}.`);
+}
+
 const crearSchema = z.object({
   email: z.string().trim().email('Correo inválido.'),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.'),
@@ -76,11 +87,12 @@ const crearSchema = z.object({
   rol: z.enum(['admin', 'operador']),
   paginas: paginasSchema.optional(),
   acciones: accionesSchema.optional(),
-});
+}).strict();
 
 usuarioRouter.post(
   '/',
   asyncHandler(async (req, res) => {
+    rechazarCamposReservados(req.body);
     const parsed = crearSchema.safeParse(req.body);
     if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Datos inválidos.');
     const { email, password, nombre, rol, paginas, acciones } = parsed.data;
@@ -105,7 +117,7 @@ const actualizarSchema = z.object({
   acciones: accionesSchema.optional(),
   activo: z.boolean(),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.').optional().or(z.literal('')),
-});
+}).strict();
 
 usuarioRouter.put(
   '/:id',
@@ -113,7 +125,10 @@ usuarioRouter.put(
     const id = Number(req.params.id);
     const existente = await findById(id);
     if (!existente) throw notFound('Usuario no encontrado.');
+    // La cuenta protegida se rechaza ANTES de cualquier otra regla (el servicio también la protege).
+    if (await esCuentaPropietario(id)) throw forbidden('Esta cuenta está protegida: no se puede modificar desde Usuarios.');
 
+    rechazarCamposReservados(req.body);
     const parsed = actualizarSchema.safeParse(req.body);
     if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Datos inválidos.');
     const { email, nombre, rol, paginas, acciones, activo, password } = parsed.data;
@@ -130,7 +145,7 @@ usuarioRouter.put(
 
     const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
     await withTransaction(async (conn) => {
-      await updateUser(id, { email, nombre, rol, paginas: paginas ?? null, acciones, activo, passwordHash }, conn);
+      await updateUser(id, { email, nombre, rol, paginas: paginas ?? null, acciones, activo, passwordHash }, conn, req.user!.sub);
       const diff: Record<string, unknown> = cambios(
         { email: existente.email, nombre: existente.nombre, rol: existente.rol, paginas: existente.paginas, acciones: existente.acciones, activo: Number(existente.activo) },
         { email: email.trim().toLowerCase(), nombre: nombre.trim(), rol, paginas: rol === 'admin' ? null : (paginas ?? null), acciones: rol === 'admin' ? null : acciones === undefined ? existente.acciones : acciones, activo: activo ? 1 : 0 },

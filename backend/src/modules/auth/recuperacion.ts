@@ -18,7 +18,8 @@ import bcrypt from 'bcryptjs';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { db, withTransaction } from '../../db/pool.js';
 import { config } from '../../config/env.js';
-import { findByEmail } from './auth.repo.js';
+import { claveCacheUsuario, establecerPasswordHash, findByEmail } from './auth.repo.js';
+import { invalidate } from '../../util/cache.js';
 import { auditarAcceso, hashIdentificador } from './accesoGuard.js';
 import { enviarCorreo as enviarCorreoReal, type Correo } from './correo.js';
 
@@ -110,8 +111,8 @@ export async function restablecerContrasena(
     if (claim.affectedRows !== 1) return null;
     const [[fila]] = await conn.query<RowDataPacket[]>('SELECT usuario_id FROM password_resets WHERE token_hash = ?', [hash]);
     const id = Number(fila!.usuario_id);
-    const [upd] = await conn.query<ResultSetHeader>('UPDATE staff_users SET password_hash = ? WHERE id = ? AND activo = 1', [passwordHash, id]);
-    if (upd.affectedRows !== 1) throw new Error('cuenta inactiva'); // revierte el reclamo
+    // Cambia la contraseña y CIERRA las sesiones abiertas de esa cuenta (sube la versión de sesión).
+    if (!(await establecerPasswordHash(id, passwordHash, conn))) throw new Error('cuenta inactiva'); // revierte el reclamo
     // Salida de un bloqueo por intentos fallidos: el siguiente ingreso parte de cero.
     const [[u]] = await conn.query<RowDataPacket[]>('SELECT email FROM staff_users WHERE id = ?', [id]);
     const idHash = hashIdentificador(u!.email);
@@ -119,6 +120,7 @@ export async function restablecerContrasena(
     await conn.query('UPDATE password_resets SET usado_en = NOW() WHERE usuario_id = ? AND usado_en IS NULL', [id]);
     return id;
   }).catch((e: Error) => (e.message === 'cuenta inactiva' ? null : Promise.reject(e)));
+  if (usuarioId !== null) invalidate(claveCacheUsuario(usuarioId)); // la caché de requireAuth ya no sirve
   const resultado = usuarioId === null ? 'RECUPERACION_INVALIDA' : 'RECUPERACION_COMPLETADA';
   await auditarAcceso({ ip, userAgent, identificadorHash: null, usuarioId, resultado });
   return usuarioId === null ? 'INVALIDO' : 'OK';

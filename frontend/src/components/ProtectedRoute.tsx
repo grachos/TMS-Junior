@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { useAuthStore, type StaffUser } from '../store/auth';
+import { useAuthStore, type Capabilities, type StaffUser } from '../store/auth';
 import { api } from '../lib/api';
 
 /** Redirects to /login when there is no active session. */
@@ -15,8 +15,8 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   // this user's permissions takes effect without forcing a re-login.
   useEffect(() => {
     if (!token) return;
-    void api<{ user: StaffUser }>('/auth/me')
-      .then((r) => setUser(r.user))
+    void api<{ user: StaffUser; capabilities?: Capabilities }>('/auth/me')
+      .then((r) => setUser(r.user, r.capabilities ?? { supportOwner: false }))
       .catch(() => {
         // Ignore — api() already logs the user out on a 401.
       });

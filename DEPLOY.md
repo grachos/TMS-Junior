@@ -122,6 +122,7 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v54_permisos_acciones.sql   ← NUEVO — permisos por acción (botones críticos) por usuario. CORRER ANTES de desplegar el código; no cambia el comportamiento de nadie hasta que un admin configure una lista
    migracion_v55_seguridad_acceso.sql   ← NUEVO — límites por IP/cuenta y auditoría de accesos del login. CORRER ANTES de desplegar el código; sin ella el login usa el límite anterior por correo (y avisa en el log)
    migracion_v56_recuperar_contrasena.sql   ← NUEVO — "Olvidé mi contraseña" por correo (enlaces de un solo uso y límites). CORRER ANTES de desplegar el código; sin ella solo falla esa función, el login sigue igual
+   migracion_v57_propietario_sesiones.sql   ← NUEVO — identidad (uuid) de cada cuenta y revocación de sesiones; base del soporte del propietario único. CORRER ANTES de desplegar el código (requiere MariaDB 10.2+: `SELECT VERSION();`); sin ella el soporte queda denegado y el resto sigue igual
    productos.sql   ← SIEMPRE AL FINAL: catálogo de productos (solo carga si la tabla está vacía)
    ```
 
@@ -239,6 +240,11 @@ CSP_MODO=report
 AUTH_CUENTA_FALLOS_MAX=5
 AUTH_IP_FALLOS_MAX=20
 AUTH_IP_TOTAL_MAX=60
+
+# --- Soporte: propietario único (ver docs/SOPORTE.md) ---
+# uuid de TU cuenta (SELECT uuid FROM staff_users WHERE email='...'). Una por sitio. Sin esto, o si no es válida, el
+# módulo de soporte queda DENEGADO para todos. No lo publiques.
+# PLATFORM_OWNER_UUID=
 
 # --- Recuperar contraseña por correo ("Olvidé mi contraseña") ---
 # Dirección pública del sitio, con https y sin barra final. El enlace del correo se arma con ESTO

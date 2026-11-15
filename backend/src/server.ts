@@ -2,6 +2,7 @@
  * Light TMS - HTTP server entrypoint.
  */
 
+import { verificarPropietarioAlArrancar } from './modules/auth/propietario.guard.js';
 import { createApp } from './app.js';
 import { config } from './config/env.js';
 import { problemaSecretoJwt } from './modules/auth/jwt.js';
@@ -34,5 +35,8 @@ void crearPrimerAdminSiFalta({
   password: process.env.SEED_ADMIN_PASSWORD,
   nombre: process.env.SEED_ADMIN_NOMBRE,
 });
+
+// Soporte: informa en el log si el vínculo del propietario es válido (no imprime el uuid).
+void verificarPropietarioAlArrancar();
 
 iniciarWatcherPush();

@@ -16,6 +16,8 @@ export interface JwtPayload {
   paginas: Pagina[] | null;
   /** Acciones críticas (operador); null = valores por defecto. El servidor la relee de la base en cada petición. */
   acciones?: Accion[] | null;
+  /** Versión de sesión con la que se emitió (staff_users.sesion_version). Si ya no coincide, el token no vale. */
+  sv?: number;
 }
 
 /** Signs an access token for a staff user. */

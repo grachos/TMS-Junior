@@ -29,17 +29,25 @@ export interface StaffUser {
   acciones?: Accion[] | null;
   /** Acciones que puede ejecutar hoy, ya resueltas por el servidor. */
   permisos?: Accion[];
+  /** El servidor la marca en la cuenta del propietario: no se edita desde Usuarios. */
+  protegido?: boolean;
   activo: 0 | 1;
   created_at: string;
+}
+
+/** Capacidades calculadas por el SERVIDOR. Solo para mostrar u ocultar la interfaz: el servidor vuelve a decidir en cada petición. */
+export interface Capabilities {
+  supportOwner: boolean;
 }
 
 interface AuthState {
   token: string | null;
   user: StaffUser | null;
+  capabilities: Capabilities | null;
   /** True when the last logout was caused by inactivity (not persisted). */
   expired: boolean;
-  setSession: (token: string, user: StaffUser) => void;
-  setUser: (user: StaffUser) => void;
+  setSession: (token: string, user: StaffUser, capabilities?: Capabilities | null) => void;
+  setUser: (user: StaffUser, capabilities?: Capabilities | null) => void;
   logout: (byInactivity?: boolean) => void;
   isAdmin: () => boolean;
   canAccess: (pagina: Pagina) => boolean;
@@ -52,10 +60,11 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       token: null,
       user: null,
+      capabilities: null,
       expired: false,
-      setSession: (token, user) => set({ token, user, expired: false }),
-      setUser: (user) => set({ user }),
-      logout: (byInactivity = false) => set({ token: null, user: null, expired: byInactivity }),
+      setSession: (token, user, capabilities = null) => set({ token, user, capabilities, expired: false }),
+      setUser: (user, capabilities) => set(capabilities === undefined ? { user } : { user, capabilities }),
+      logout: (byInactivity = false) => set({ token: null, user: null, capabilities: null, expired: byInactivity }),
       isAdmin: () => get().user?.rol === 'admin',
       can: (accion) => {
         const u = get().user;
@@ -70,7 +79,7 @@ export const useAuthStore = create<AuthState>()(
         return u.paginas === null || u.paginas.includes(pagina);
       },
     }),
-    { name: 'tms-auth', partialize: (s) => ({ token: s.token, user: s.user }) },
+    { name: 'tms-auth', partialize: (s) => ({ token: s.token, user: s.user, capabilities: s.capabilities }) },
   ),
 );
 
