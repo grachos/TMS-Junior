@@ -217,8 +217,16 @@ Motor **determinista** (sin IA): `backend/src/modules/diagnostico/`. Se ejecuta 
 - Se guardan hasta 5 diagnósticos por incidente (`incidente_diagnosticos`, migración v59, repetible).
 - Límites: sin IA no explica errores nuevos; lo no reconocido queda `sin_evidencia` y pasa al propietario.
 
+## Fase 3c — explicación con IA (borrador)
+
+Módulo aparte `backend/src/modules/soporteIa/` (no está en el registro de herramientas del chat; el modelo **no tiene herramientas**). Opt-in: `SOPORTE_IA_HABILITADO=true` + `OPENROUTER_API_KEY` (modelo opcional `SOPORTE_IA_MODELO`, por defecto el del chat). Migración v60.
+
+- Solo el propietario, a mano ("Explicar con IA"); requiere un diagnóstico previo. Pausa de 30 s y tope de 5 por incidente.
+- Entrada: diagnóstico por reglas + última evidencia, **vueltos a sanitizar**, sin `<`/`>` y dentro de un bloque `<datos>` marcado como no confiable. Sin datos de usuarios.
+- Salida: se sanitiza y recorta; se guarda solo como texto para el propietario. **No** cambia confianza, estado, tipo, `corregible` ni la explicación pública, y no notifica.
+- Si el proveedor falla: 502 genérico (no se reenvía su mensaje).
+
 ## Siguientes fases (en pruebas primero)
 
-3c. Explicación con IA (borrador, nunca decide confianza) ·
 4. Corrección con PR en un entorno aislado (GitHub Actions) · 5. Integración automática al sitio de pruebas.
 El chat actual de datos **no** tiene herramientas técnicas: cuando las haya, vivirán solo en el contexto del propietario.

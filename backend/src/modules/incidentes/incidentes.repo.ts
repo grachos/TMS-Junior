@@ -8,6 +8,7 @@
 
 import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import type { Pool, PoolConnection } from 'mysql2/promise';
+import { config } from '../../config/env.js';
 import { db, withTransaction } from '../../db/pool.js';
 import { sanitizarTexto } from './sanitizar.js';
 
@@ -196,7 +197,7 @@ export async function propietarioDetalle(id: number) {
      FROM incidente_reportes r LEFT JOIN staff_users su ON su.id = r.usuario_id WHERE r.incidente_id = ? ORDER BY r.id DESC`, [id]);
   const [mensajes] = await db().query<RowDataPacket[]>('SELECT * FROM incidente_mensajes WHERE incidente_id = ? ORDER BY id DESC LIMIT 200', [id]);
   const { listarDiagnosticos } = await import('../diagnostico/servicio.js');
-  return { incidente: inc, eventos, evidencias, reportes, mensajes, diagnosticos: await listarDiagnosticos(id) };
+  return { incidente: inc, eventos, evidencias, reportes, mensajes, diagnosticos: await listarDiagnosticos(id), explicacionesIa: await (await import('../soporteIa/explicar.js')).listarExplicaciones(id), iaDisponible: Boolean(config().soporteIa.habilitado && config().chat.apiKey) };
 }
 
 export interface CambiosIncidente {

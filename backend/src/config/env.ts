@@ -72,6 +72,8 @@ export interface AppConfig {
     baseUrl: string;
     maxFilas: number;
   };
+  /** Explicación con IA para el propietario (fase 3c). */
+  soporteIa: { habilitado: boolean; modelo: string };
 }
 
 let cached: AppConfig | null = null;
@@ -175,6 +177,11 @@ export function config(): AppConfig {
       modelo: str('OPENROUTER_MODEL', 'meta-llama/llama-3.3-70b-instruct:free'),
       baseUrl: str('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
       maxFilas: int('CHAT_MAX_FILAS', 200),
+    },
+    /** Soporte del propietario: explicación con IA (borrador). Opt-in; reutiliza la clave/modelo de OpenRouter. */
+    soporteIa: {
+      habilitado: bool('SOPORTE_IA_HABILITADO', false),
+      modelo: str('SOPORTE_IA_MODELO', ''),
     },
   };
   return cached;

@@ -25,6 +25,8 @@ interface Detalle {
   reportes: { id: number; usuario_nombre: string | null; usuario_email: string | null; texto: string; pantalla: string | null; request_id: string | null; created_at: string }[];
   mensajes: { id: number; reporte_id: number | null; visibilidad: string; autor: string; texto: string; created_at: string }[];
   diagnosticos?: Diagnostico[];
+  explicacionesIa?: { id: number; modelo: string; texto: string; created_at: string }[];
+  iaDisponible?: boolean;
 }
 
 interface Diagnostico {
@@ -170,6 +172,18 @@ function DetalleIncidente({ id, alCambiar }: { id: number; alCambiar: () => void
     }
   }
 
+  async function explicarIa() {
+    if (!envio.tomar('ia')) return;
+    try {
+      await api(`/soporte/incidentes/${id}/explicar-ia`, { method: 'POST', body: {} });
+      await cargar();
+    } catch (e) {
+      setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo generar el borrador.' });
+    } finally {
+      envio.soltar('ia');
+    }
+  }
+
   async function usarBorrador(did: number, sobrescribir: boolean) {
     if (!envio.tomar('borrador')) return;
     try {
@@ -262,6 +276,22 @@ function DetalleIncidente({ id, alCambiar }: { id: number; alCambiar: () => void
           ))}
         </ul>
       </section>
+
+      {d.iaDisponible && (
+        <section>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-celeste-700">Borrador con IA (solo para ti)</h3>
+            <button className="btn-ghost" disabled={(d.diagnosticos ?? []).length === 0} onClick={() => void explicarIa()}>Explicar con IA</button>
+          </div>
+          <p className="mb-2 text-xs text-slate-400">Redactado por un modelo a partir del diagnóstico y de evidencia sanitizada. Es una hipótesis: no cambia la confianza, el estado ni la explicación pública, y no se envía a nadie.</p>
+          {(d.explicacionesIa ?? []).slice(0, 1).map((x) => (
+            <div key={x.id} className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-700">
+              <p className="whitespace-pre-wrap">{x.texto}</p>
+              <p className="mt-1 text-xs text-slate-400">{x.modelo} · {fecha(x.created_at)}</p>
+            </div>
+          ))}
+        </section>
+      )}
 
       <section>
         <h3 className="mb-1 text-sm font-semibold text-celeste-700">Explicación pública (la ven quienes reportaron)</h3>
