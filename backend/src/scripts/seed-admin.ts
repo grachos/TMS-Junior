@@ -10,6 +10,7 @@
  * updates its password/role if the email already exists.
  */
 
+import { coincidePropietario } from '../modules/auth/propietario.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -34,6 +35,20 @@ async function main() {
   for (const stmt of ddl.split(';')) {
     const s = stmt.trim();
     if (s && !s.startsWith('--')) await db().query(s);
+  }
+
+  // La cuenta del propietario de la plataforma NO se sobrescribe desde este script (la recuperación excepcional
+  // sigue el procedimiento documentado en DEPLOY.md, con auditoría y revocación de sesiones).
+  try {
+    const [rows] = await db().query<import('mysql2').RowDataPacket[]>('SELECT uuid FROM staff_users WHERE email = ?', [email]);
+    if (rows[0] && coincidePropietario(String(rows[0].uuid ?? ''))) {
+      // eslint-disable-next-line no-console
+      console.error('seed-admin: ese correo pertenece al propietario de la plataforma; no se modifica. Ver DEPLOY.md (recuperación del propietario).');
+      await db().end();
+      process.exit(1);
+    }
+  } catch (e) {
+    if ((e as { code?: string }).code !== 'ER_BAD_FIELD_ERROR') throw e; // sin v57 no hay propietario vinculable
   }
 
   const hash = await bcrypt.hash(password, 10);

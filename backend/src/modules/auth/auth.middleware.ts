@@ -47,7 +47,11 @@ export const requireAuth: RequestHandler = (req: Request, _res: Response, next: 
   cached(claveCacheUsuario(id), USUARIO_CACHE_MS, () => findById(id))
     .then((u) => {
       if (!u || !u.activo) return next(unauthorized('Tu sesión ya no es válida. Inicia sesión de nuevo.'));
-      req.user = { sub: u.id, email: u.email, nombre: u.nombre, rol: u.rol, paginas: u.paginas, acciones: u.acciones };
+      // Sesiones revocadas (cambio de contraseña, recuperación, cierre forzado): la versión del token ya no coincide.
+      if ((payload.sv ?? 0) !== (u.sesion_version ?? 0)) {
+        return next(unauthorized('Tu sesión ya no es válida. Inicia sesión de nuevo.'));
+      }
+      req.user = { sub: u.id, email: u.email, nombre: u.nombre, rol: u.rol, paginas: u.paginas, acciones: u.acciones, sv: payload.sv ?? 0 };
       next();
     })
     .catch(next);

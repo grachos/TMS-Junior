@@ -5,7 +5,7 @@ import { KonektoMark, KonektoWordmark } from '../components/Logo';
 import { api, ApiError } from '../lib/api';
 import { playLoginIntro } from '../lib/loginIntro';
 import { useSplash } from '../lib/splash';
-import { useAuthStore, type StaffUser } from '../store/auth';
+import { useAuthStore, type Capabilities, type StaffUser } from '../store/auth';
 import { useTurnstile } from '../lib/useTurnstile';
 
 /** UI strings, in one place to ease translation. */
@@ -41,13 +41,13 @@ export default function Login() {
     setError(null);
     setLoading(true);
     try {
-      const { token, user } = await api<{ token: string; user: StaffUser }>('/auth/login', {
+      const { token, user, capabilities } = await api<{ token: string; user: StaffUser; capabilities?: Capabilities }>('/auth/login', {
         method: 'POST',
         anonymous: true,
         body: { email, password, ...captcha.payload },
       });
       useSplash.getState().show(undefined, true); // covers the dashboard at once; Inicio hides it
-      setSession(token, user);
+      setSession(token, user, capabilities ?? { supportOwner: false });
       navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar sesión.');

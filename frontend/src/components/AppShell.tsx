@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
+  LifeBuoy,
   History,
   Percent,
   LayoutDashboard,
@@ -53,6 +54,8 @@ interface NavItem {
   adminOnly?: boolean;
   /** Shown to anyone allowed to run this action (admin always). */
   accion?: string;
+  /** Solo el propietario de la plataforma (capacidad calculada por el servidor; NO es admin ni una acción). */
+  soloPropietario?: boolean;
 }
 
 /** Polls a `{ pendientes }` count endpoint every BADGE_POLL_MS. */
@@ -99,6 +102,7 @@ const NAV: { section?: string; items: NavItem[] }[] = [
       { to: '/usuarios', label: 'Usuarios', icon: UsersRound, adminOnly: true },
       { to: '/impuestos', label: 'Impuestos', icon: Percent, accion: 'impuestos.gestionar' },
       { to: '/actividad', label: 'Actividad', icon: History, accion: 'actividad.ver' },
+      { to: '/soporte', label: 'Soporte', icon: LifeBuoy, soloPropietario: true },
     ],
   },
 ];
@@ -167,7 +171,7 @@ function NotificationToggle() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const { user, canAccess, isAdmin, can } = useAuthStore();
+  const { user, canAccess, isAdmin, can, capabilities } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [colaPendientes, setColaPendientes] = useState(0);
@@ -181,6 +185,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const visibleNav = NAV.map((group) => ({
     ...group,
     items: group.items.filter((item) => {
+      // El soporte NO usa isAdmin()/can()/canAccess(): solo la capacidad que calcula el servidor.
+      if (item.soloPropietario) return capabilities?.supportOwner === true;
       if (item.adminOnly) return isAdmin();
       if (item.accion) return can(item.accion);
       if (item.pagina) return canAccess(item.pagina);

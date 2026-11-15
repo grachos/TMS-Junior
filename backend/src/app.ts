@@ -31,6 +31,7 @@ import { usuarioRouter } from './modules/usuarios/usuario.routes.js';
 import { pushRouter } from './modules/push/push.routes.js';
 import { auditoriaRouter } from './modules/auditoria/auditoria.routes.js';
 import { impuestosRouter } from './modules/impuestos/impuestos.routes.js';
+import { soporteRouter } from './modules/soporte/soporte.routes.js';
 import { cabeceraCsp, cspModoDe, hashesDeIndex } from './http/seguridad.js';
 
 export function createApp() {
@@ -123,6 +124,7 @@ export function createApp() {
   api.use('/push', pushRouter);
   api.use('/auditoria', auditoriaRouter);
   api.use('/impuestos', impuestosRouter);
+  api.use('/soporte', soporteRouter); // privado del propietario (requirePlatformOwner en su primera línea)
   //   api.use('/vehiculos', vehiculoRouter) ... etc.
 
   app.use('/api', api);

@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Pencil, Loader2, ShieldCheck, UsersRound } from 'lucide-react';
+import { Plus, Pencil, Loader2, Lock, ShieldCheck, UsersRound } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuthStore } from '../../store/auth';
 import { Alert } from '../../components/Alert';
@@ -117,9 +117,15 @@ export default function UsuariosList() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
-                      <Link to={`/usuarios/${u.id}/editar`} className="btn-ghost px-2 py-1" title="Editar">
-                        <Pencil size={15} />
-                      </Link>
+                      {u.protegido ? (
+                        <span className="flex items-center gap-1 text-xs text-slate-400" title="Cuenta protegida: no se modifica desde Usuarios">
+                          <Lock size={14} /> Protegida
+                        </span>
+                      ) : (
+                        <Link to={`/usuarios/${u.id}/editar`} className="btn-ghost px-2 py-1" title="Editar">
+                          <Pencil size={15} />
+                        </Link>
+                      )}
                     </div>
                   </td>
                 </tr>

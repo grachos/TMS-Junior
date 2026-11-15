@@ -33,6 +33,8 @@ import UsuarioForm from './pages/usuarios/UsuarioForm';
 import ActividadPage from './pages/actividad/ActividadPage';
 import ImpuestosPage from './pages/impuestos/ImpuestosPage';
 import RecuperarPage from './pages/RecuperarPage';
+import SoportePage from './pages/soporte/SoportePage';
+import { OwnerGuard } from './components/OwnerGuard';
 import RestablecerPage from './pages/RestablecerPage';
 
 /** Redirects home if the current user can't access `pagina` (admin always can). */
@@ -91,6 +93,7 @@ export default function App() {
       <Route path="/usuarios/nuevo" element={<Shell adminOnly><UsuarioForm /></Shell>} />
       <Route path="/usuarios/:id/editar" element={<Shell adminOnly><UsuarioForm /></Shell>} />
       <Route path="/actividad" element={<Shell accion="actividad.ver"><ActividadPage /></Shell>} />
+      <Route path="/soporte" element={<Shell><OwnerGuard><SoportePage /></OwnerGuard></Shell>} />
       <Route path="/impuestos" element={<Shell accion="impuestos.gestionar"><ImpuestosPage /></Shell>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
