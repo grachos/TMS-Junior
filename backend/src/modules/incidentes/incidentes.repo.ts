@@ -211,7 +211,7 @@ export async function propietarioDetalle(id: number) {
      FROM incidente_reportes r LEFT JOIN staff_users su ON su.id = r.usuario_id WHERE r.incidente_id = ? ORDER BY r.id DESC`, [id]);
   const [mensajes] = await db().query<RowDataPacket[]>('SELECT * FROM incidente_mensajes WHERE incidente_id = ? ORDER BY id DESC LIMIT 200', [id]);
   const { listarDiagnosticos } = await import('../diagnostico/servicio.js');
-  return { incidente: inc, eventos, evidencias, reportes, mensajes, diagnosticos: await listarDiagnosticos(id), explicacionesIa: await (await import('../soporteIa/explicar.js')).listarExplicaciones(id), iaDisponible: Boolean(config().soporteIa.habilitado && config().chat.apiKey) };
+  return { incidente: inc, eventos, evidencias, reportes, mensajes, diagnosticos: await listarDiagnosticos(id), explicacionesIa: await (await import('../soporteIa/explicar.js')).listarExplicaciones(id), githubDisponible: (await import('../agente/issues.js')).githubDisponible(), elegibilidadAgente: await (await import('../agente/issues.js')).elegibilidadDe(id), iaDisponible: Boolean(config().soporteIa.habilitado && config().chat.apiKey) };
 }
 
 export interface CambiosIncidente {

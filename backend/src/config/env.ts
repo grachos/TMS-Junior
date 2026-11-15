@@ -74,6 +74,8 @@ export interface AppConfig {
   };
   /** Explicación con IA para el propietario (fase 3c). */
   soporteIa: { habilitado: boolean; modelo: string };
+  /** Fase 4: crear issues sanitizados en GitHub para el agente de corrección. Opt-in. */
+  soporteGithub: { habilitado: boolean; token: string; repo: string; apiUrl: string; repoPrivado: boolean };
 }
 
 let cached: AppConfig | null = null;
@@ -182,6 +184,15 @@ export function config(): AppConfig {
     soporteIa: {
       habilitado: bool('SOPORTE_IA_HABILITADO', false),
       modelo: str('SOPORTE_IA_MODELO', ''),
+    },
+    soporteGithub: {
+      habilitado: bool('GITHUB_ISSUES_HABILITADO', false),
+      // Token de grano fino con SOLO "Issues: write" en este repositorio.
+      token: str('GITHUB_ISSUES_TOKEN', ''),
+      repo: str('GITHUB_ISSUES_REPO', 'grachos/TMS-Junior'),
+      apiUrl: str('GITHUB_API_URL', 'https://api.github.com'),
+      // Solo con repositorio PRIVADO el issue lleva evidencia sanitizada; en uno público va un cuerpo mínimo.
+      repoPrivado: bool('GITHUB_REPO_PRIVADO', false),
     },
   };
   return cached;

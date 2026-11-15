@@ -126,6 +126,7 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v58_incidentes.sql   ← NUEVO — incidentes y reportes de usuarios (soporte, fase 2). Repetible; sin ella la captura falla en silencio y los reportes responden con error, el resto de la app sigue
    migracion_v59_diagnosticos.sql   ← NUEVO — diagnósticos de incidentes (soporte, fase 3b). Repetible; sin ella el diagnóstico automático falla en silencio, el resto sigue
    migracion_v60_explicaciones_ia.sql   ← NUEVO — borradores con IA para el propietario (soporte, fase 3c). Repetible; solo se usa si `SOPORTE_IA_HABILITADO=true`
+   migracion_v61_issue_incidente.sql   ← NUEVO — vínculo incidente ↔ issue de GitHub (soporte, fase 4). Repetible; solo se usa si `GITHUB_ISSUES_HABILITADO=true`
    productos.sql   ← SIEMPRE AL FINAL: catálogo de productos (solo carga si la tabla está vacía)
    ```
 
