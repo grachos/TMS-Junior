@@ -251,7 +251,8 @@ Módulo aparte `backend/src/modules/soporteIa/` (no está en el registro de herr
 4. **Secretos del repo**: `CLAUDE_CODE_OAUTH_TOKEN` (con tu suscripción Pro/Max: ejecuta `claude setup-token` en tu computador y pega el resultado; si prefieres pagar por uso, cambia el workflow a `anthropic_api_key` y el secreto `ANTHROPIC_API_KEY`) y `AGENTE_GITHUB_TOKEN` (token de grano fino o GitHub App con Contents y Pull requests: write). Hace falta un token propio porque **los PR abiertos con el `GITHUB_TOKEN` por defecto no disparan el CI** (build/db-tests no correrían sobre el PR del agente).
 5. **Fijar la acción a un SHA**: cambia `anthropics/claude-code-action@v1` por el SHA de commit de esa versión tras revisarlo (el tag es móvil).
 6. **Proteger `main`**: exigir los checks `build` y `db-tests` y revisión antes de integrar.
-7. Antes de la primera prueba real, revisa los permisos/`allowedTools` del workflow contra el README actual de la acción (no pude verificarlos desde aquí).
+7. El modelo del agente está **fijado** en el workflow (`--model claude-sonnet-5-5`) para que el comportamiento y el consumo de cupo no cambien sin que lo decidas. Si tu plan no lo incluye, la corrida falla; cámbialo por uno que sí. Se actualiza a mano.
+8. Antes de la primera prueba real, revisa los permisos/`allowedTools` del workflow contra el README actual de la acción (no pude verificarlos desde aquí).
 
 ## Siguientes fases (en pruebas primero)
 
