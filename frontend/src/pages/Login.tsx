@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { LogIn, Loader2, Eye, EyeOff } from 'lucide-react';
 import { KonektoMark, KonektoWordmark } from '../components/Logo';
 import { api, ApiError } from '../lib/api';
@@ -128,6 +128,9 @@ export default function Login() {
             {loading ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
             Ingresar
           </button>
+          <Link to="/recuperar" className="block text-center text-sm text-celeste-700 hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
         </form>
       </div>
     </div>
