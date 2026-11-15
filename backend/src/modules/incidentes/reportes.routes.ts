@@ -16,7 +16,7 @@ import { AppError, asyncHandler, badRequest, notFound } from '../../http/errors.
 import { diagnosticarEnSegundoPlano } from '../diagnostico/servicio.js';
 import { avisarPropietario } from './notificar.js';
 import {
-  crearReporte, incidentePorRequestId, registrarOcurrencia, reportesRecientesDe, telemetriaRecienteDe, vistaMiReporte, vistaMisReportes,
+  crearReporte, incidentePorRequestId, registrarOcurrencia, reportesRecientesDe, telemetriaRecienteDe, vistaErrorConocido, vistaMiReporte, vistaMisReportes,
 } from './incidentes.repo.js';
 import { huella, normalizarRuta, sanitizarPila, sanitizarTexto } from './sanitizar.js';
 import { sitioId, versionDespliegue } from './version.js';
@@ -98,6 +98,16 @@ reportesRouter.post(
       evidencia: { tipo: 'cliente', contenido: JSON.stringify({ tipo: t.tipo, ruta, mensaje, pila: t.pila ? sanitizarPila(t.pila) : '' }), usuarioId, requestId: t.requestId ?? null },
     });
     res.status(204).end();
+  }),
+);
+
+/** ¿Mi último error ya está registrado? Siempre 200: `conocido:false` también si el código es de otro usuario o no existe. */
+reportesRouter.get(
+  '/error/:requestId',
+  asyncHandler(async (req, res) => {
+    const rid = String(req.params.requestId ?? '');
+    const v = /^[\w-]{1,64}$/.test(rid) ? await vistaErrorConocido(req.user!.sub, rid) : null;
+    res.json(v ? { conocido: true, ...v } : { conocido: false });
   }),
 );
 

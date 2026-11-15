@@ -166,6 +166,20 @@ export async function vistaMiReporte(usuarioId: number, reporteId: number): Prom
   return aVista(rows[0], msgs);
 }
 
+/**
+ * ¿El error que acaba de ver ESTE usuario (su X-Request-Id) ya es un incidente conocido? Solo cuenta si la evidencia la generó él
+ * (usuario_id); de otros usuarios o inexistente → null (la ruta responde igual, sin revelar nada). Misma lista blanca que los reportes.
+ */
+export async function vistaErrorConocido(usuarioId: number, requestId: string): Promise<{ estado: VistaReporte['estado']; explicacion: VistaReporte['explicacion'] } | null> {
+  const [rows] = await db().query<RowDataPacket[]>(
+    `SELECT i.estado, i.exp_hecho, i.exp_posible_causa, i.exp_causa_confirmada, i.exp_accion_temporal, i.exp_estado_correccion
+       FROM incidente_evidencias e JOIN incidentes i ON i.id = e.incidente_id
+      WHERE e.request_id = ? AND e.usuario_id = ? ORDER BY e.id DESC LIMIT 1`, [requestId, usuarioId]);
+  if (!rows[0]) return null;
+  const v = aVista({ ...rows[0], id: 0, created_at: '', updated_at: '', pantalla: null, texto: '' } as RowDataPacket, []);
+  return { estado: v.estado, explicacion: v.explicacion };
+}
+
 // ---------------------------------------------------------------- PROPIETARIO
 
 export interface FiltrosIncidentes { estado?: string; tipo?: string; sitio?: string; q?: string; limite?: number }

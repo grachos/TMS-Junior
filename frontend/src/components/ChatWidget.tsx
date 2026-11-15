@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Bot, LifeBuoy, ListChecks, Loader2, MessageCircle, Send, X } from 'lucide-react';
 import { api, ApiError } from '../lib/api';
-import { EVENTO_REPORTAR, type DetalleReportar } from '../lib/reportarEvento';
+import { EVENTO_REPORTAR, registrarPanelReportes, type DetalleReportar } from '../lib/reportarEvento';
 import { MisReportes, contarNovedades } from './soporte/MisReportes';
 import { ReportarProblema } from './soporte/ReportarProblema';
 import type { VistaReporte } from './soporte/ExplicacionReporte';
@@ -142,7 +142,8 @@ export function ChatWidget() {
       setAbierto(true);
     };
     window.addEventListener(EVENTO_REPORTAR, abrir);
-    return () => window.removeEventListener(EVENTO_REPORTAR, abrir);
+    registrarPanelReportes(true);
+    return () => { window.removeEventListener(EVENTO_REPORTAR, abrir); registrarPanelReportes(false); };
   }, []);
 
   const novedades = contarNovedades(reportes);
