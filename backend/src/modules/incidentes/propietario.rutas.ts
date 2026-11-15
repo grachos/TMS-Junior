@@ -9,6 +9,7 @@ import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
 import { db } from '../../db/pool.js';
 import { actorDe, auditar } from '../auditoria/auditoria.repo.js';
 import { aplicarBorrador, diagnosticarIncidente } from '../diagnostico/servicio.js';
+import { IssueError, crearIssueDeIncidente } from '../agente/issues.js';
 import { ExplicacionIaError, explicarConIa } from '../soporteIa/explicar.js';
 import { avisarUsuarios } from './notificar.js';
 import { TIPOS_INCIDENTE } from './clasificar.js';
@@ -106,6 +107,23 @@ export function registrarRutasIncidentes(router: Router): void {
           res.status(estado).json({ error: e.message });
           return;
         }
+        throw e;
+      }
+    }),
+  );
+
+  /** Crea el issue de GitHub del incidente (si es elegible). No dispara al agente: eso lo hace el propietario con la etiqueta. */
+  router.post(
+    '/incidentes/:id/issue',
+    asyncHandler(async (req, res) => {
+      const id = idDe(req.params.id);
+      try {
+        const r = await crearIssueDeIncidente(id, req.user!.sub);
+        if (!r) throw notFound('Incidente no encontrado.');
+        await auditar(db(), actorDe(req), 'incidente.issue_creado', 'incidente', id, `Incidente #${id}: issue ${r.numero} creado en GitHub`, { issue: r.numero });
+        res.json(r);
+      } catch (e) {
+        if (e instanceof IssueError) { res.status(e.codigo === 'proveedor' ? 502 : 409).json({ error: e.message }); return; }
         throw e;
       }
     }),

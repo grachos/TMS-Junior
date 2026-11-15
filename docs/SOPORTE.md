@@ -231,7 +231,30 @@ Módulo aparte `backend/src/modules/soporteIa/` (no está en el registro de herr
 - Todo aviso rojo (`Alert` de error) muestra **"Reportar este error"** cuando hay sesión (el panel de reportes está montado): abre el chat en la pestaña Reportar con el mensaje ya escrito. El código técnico del último 5xx se adjunta solo.
 - Al abrir Reportar tras un error, `GET /api/reportes/error/:requestId` dice si ese error **del propio usuario** ya es un incidente conocido y, de serlo, se muestra la explicación pública en 5 partes. Siempre 200; de otro usuario, inexistente o inválido → `{conocido:false}`.
 
+## Fase 4 — issue sanitizado y agente de corrección (PR, nunca integración)
+
+**Lo que hace la app** (solo propietario, a mano, opt-in): botón "Crear issue en GitHub" en el incidente. Migración v61 (`issue_numero`, `issue_url`, `issue_reservado_en`; repetible).
+
+- **Elegibilidad en el servidor** (`backend/src/modules/agente/politica.ts`, un solo lugar; la fase 5 lo leerá): `corregible=1`, tipo `codigo`, diagnóstico de categoría `codigo` y que no diga "no se resuelve con código". Migración, configuración, RNDC, infraestructura, proveedor de IA, datos y permisos **nunca** pasan al agente.
+- **Un issue por incidente**: se reserva con un UPDATE condicional antes de llamar a GitHub (doble clic o dos pestañas → uno solo). Si GitHub falla: 502 genérico (no se reenvía su mensaje) y se libera la reserva.
+- **Cuerpo del issue** (plantilla fija, `cuerpoIssue.ts`): todo re-sanitizado; sin `@` (no avisa a nadie), sin `#123` (no enlaza), sin comillas invertidas (no rompe el bloque), sin HTML. **Nunca** lleva texto de reportes, ids/correos de usuarios, códigos de correlación ni explicaciones de IA.
+- **Repositorio público ⇒ cuerpo mínimo, sin evidencia** (rutas y pilas quedarían publicadas aunque estén sanitizadas). La evidencia solo va con `GITHUB_REPO_PRIVADO=true`. Este repositorio hoy es **público**.
+- La app **no** pone la etiqueta que dispara al agente: esa es la aprobación explícita del propietario en GitHub.
+
+**El workflow** (`.github/workflows/agente-correccion.yml`) está **inerte** hasta configurarlo y **no se ha ejecutado nunca**. Se dispara solo si: la etiqueta es `agente-corregir`, el issue tiene `incidente-soporte`, quien etiquetó es `vars.AGENTE_PROPIETARIO` y el autor del issue es `vars.AGENTE_AUTOR_ISSUES`. Sin secretos, termina limpio. Abre un PR desde `agente/incidente-<n>` hacia `main`; nunca hace push a `main`/`produccion` ni integra solo (eso es la fase 5).
+
+### Lista de configuración (la haces tú; nada de esto lo hace el agente)
+
+1. **Token de la app** (GitHub → Settings → Developer settings → fine-grained token): repositorio = solo este, permiso **Issues: Read and write**. Variables en hPanel del sitio de pruebas: `GITHUB_ISSUES_HABILITADO=true`, `GITHUB_ISSUES_TOKEN=<token>` (opcional `GITHUB_ISSUES_REPO`, `GITHUB_REPO_PRIVADO`).
+2. **Etiquetas** en el repo: `incidente-soporte` y `agente-corregir`.
+3. **Variables del repo** (Settings → Secrets and variables → Actions → Variables): `AGENTE_PROPIETARIO` = tu usuario de GitHub; `AGENTE_AUTOR_ISSUES` = el usuario dueño del token del paso 1.
+4. **Secretos del repo**: `CLAUDE_CODE_OAUTH_TOKEN` (con tu suscripción Pro/Max: ejecuta `claude setup-token` en tu computador y pega el resultado; si prefieres pagar por uso, cambia el workflow a `anthropic_api_key` y el secreto `ANTHROPIC_API_KEY`) y `AGENTE_GITHUB_TOKEN` (token de grano fino o GitHub App con Contents y Pull requests: write). Hace falta un token propio porque **los PR abiertos con el `GITHUB_TOKEN` por defecto no disparan el CI** (build/db-tests no correrían sobre el PR del agente).
+5. **Fijar la acción a un SHA**: cambia `anthropics/claude-code-action@v1` por el SHA de commit de esa versión tras revisarlo (el tag es móvil).
+6. **Proteger `main`**: exigir los checks `build` y `db-tests` y revisión antes de integrar.
+7. El modelo del agente está **fijado** en el workflow (`--model claude-sonnet-5-5`) para que el comportamiento y el consumo de cupo no cambien sin que lo decidas. Si tu plan no lo incluye, la corrida falla; cámbialo por uno que sí. Se actualiza a mano.
+8. Antes de la primera prueba real, revisa los permisos/`allowedTools` del workflow contra el README actual de la acción (no pude verificarlos desde aquí).
+
 ## Siguientes fases (en pruebas primero)
 
-4. Corrección con PR en un entorno aislado (GitHub Actions) · 5. Integración automática al sitio de pruebas.
+5. Integración automática al sitio de pruebas.
 El chat actual de datos **no** tiene herramientas técnicas: cuando las haya, vivirán solo en el contexto del propietario.

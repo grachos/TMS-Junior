@@ -19,7 +19,7 @@ interface Fila {
   version_despliegue: string | null; ocurrencias: number; primera_vez: string; ultima_vez: string; reportes: number; usuarios_reportaron: number;
 }
 interface Detalle {
-  incidente: Fila & { codigo: string | null; exp_hecho: string | null; exp_posible_causa: string | null; exp_causa_confirmada: string | null; exp_accion_temporal: string | null; exp_estado_correccion: string | null };
+  incidente: Fila & { codigo: string | null; issue_numero: number | null; issue_url: string | null; exp_hecho: string | null; exp_posible_causa: string | null; exp_causa_confirmada: string | null; exp_accion_temporal: string | null; exp_estado_correccion: string | null };
   eventos: { id: number; tipo: string; detalle: string | null; created_at: string }[];
   evidencias: { id: number; tipo: string; contenido: string; request_id: string | null; version_despliegue: string | null; created_at: string }[];
   reportes: { id: number; usuario_nombre: string | null; usuario_email: string | null; texto: string; pantalla: string | null; request_id: string | null; created_at: string }[];
@@ -27,6 +27,8 @@ interface Detalle {
   diagnosticos?: Diagnostico[];
   explicacionesIa?: { id: number; modelo: string; texto: string; created_at: string }[];
   iaDisponible?: boolean;
+  githubDisponible?: boolean;
+  elegibilidadAgente?: { elegible: boolean; motivo: string } | null;
 }
 
 interface Diagnostico {
@@ -184,6 +186,19 @@ function DetalleIncidente({ id, alCambiar }: { id: number; alCambiar: () => void
     }
   }
 
+  async function crearIssue() {
+    if (!envio.tomar('issue')) return;
+    try {
+      const r = await api<{ numero: number; url: string }>(`/soporte/incidentes/${id}/issue`, { method: 'POST', body: {} });
+      setFlash({ kind: 'ok', message: `Issue ${r.numero} creado en GitHub. Para que el agente proponga la corrección, ponle la etiqueta "agente-corregir" en GitHub.` });
+      await cargar();
+    } catch (e) {
+      setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo crear el issue.' });
+    } finally {
+      envio.soltar('issue');
+    }
+  }
+
   async function usarBorrador(did: number, sobrescribir: boolean) {
     if (!envio.tomar('borrador')) return;
     try {
@@ -276,6 +291,20 @@ function DetalleIncidente({ id, alCambiar }: { id: number; alCambiar: () => void
           ))}
         </ul>
       </section>
+
+      {(d.githubDisponible || i.issue_url) && (
+        <section>
+          <h3 className="mb-1 text-sm font-semibold text-celeste-700">Corrección con el agente (GitHub)</h3>
+          {i.issue_url && i.issue_url.startsWith('https://') ? (
+            <p className="text-sm text-slate-700">Issue creado: <a className="font-medium text-celeste-700 underline" href={i.issue_url} target="_blank" rel="noreferrer noopener">#{i.issue_numero}</a>. El agente solo actúa cuando le pones la etiqueta <span className="font-mono">agente-corregir</span> en GitHub y solo abre un PR: nunca integra solo.</p>
+          ) : (
+            <>
+              <p className={`mb-2 text-sm ${d.elegibilidadAgente?.elegible ? 'text-slate-700' : 'text-amber-700'}`}>{d.elegibilidadAgente?.motivo ?? ''}</p>
+              <button className="btn-ghost" disabled={!d.elegibilidadAgente?.elegible} onClick={() => void crearIssue()}>Crear issue en GitHub</button>
+            </>
+          )}
+        </section>
+      )}
 
       {d.iaDisponible && (
         <section>
