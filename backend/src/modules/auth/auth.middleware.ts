@@ -79,11 +79,16 @@ export function requireRole(...roles: Rol[]): RequestHandler {
  * endpoints — NOT on shared lookup endpoints (/buscar, /detalle, /resumen)
  * that other pages' forms depend on regardless of the user's own page access.
  */
+/** ¿Este usuario puede usar la página/módulo? (admin siempre; operador sin lista = todas; con lista, solo esas). Única fuente de la regla. */
+export function tienePagina(u: { rol: Rol; paginas: Pagina[] | null }, pagina: Pagina): boolean {
+  if (u.rol === 'admin') return true;
+  return u.paginas === null || u.paginas.includes(pagina);
+}
+
 export function requirePagina(pagina: Pagina): RequestHandler {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) throw unauthorized();
-    if (req.user.rol === 'admin') return next();
-    if (req.user.paginas === null || req.user.paginas.includes(pagina)) return next();
+    if (tienePagina(req.user, pagina)) return next();
     throw forbidden(`No tienes acceso al módulo "${pagina}".`);
   };
 }

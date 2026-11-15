@@ -154,6 +154,48 @@ Verificado en Chromium (app compilada, CSP en modo bloqueo, chat de IA apagado):
 novedad en el botón del usuario; pantalla de error con menú vivo y reporte prellenado; telemetría de error de React y de un 500 con su id de
 correlación; el login no envía telemetría; 0 violaciones de CSP.
 
+## Fase 3a — chat de datos: herramientas tipadas y autorización del servidor
+
+**Cambio de comportamiento (léelo):** el chat de datos **ya no escribe SQL libre**. Antes el modelo generaba un `SELECT` y una expresión
+regular era la barrera real —el propio código decía que en producción no había usuario de solo lectura—, y además el chat no sabía quién
+preguntaba: cualquier usuario autenticado podía consultar datos de pantallas a las que no tenía acceso. Ahora:
+
+- **Herramientas tipadas** (`chat/herramientas.ts`): cada una con consulta fija, columnas enumeradas, parámetros validados (zod `.strict()`),
+  enlazados y con `LIMIT`. Cubren solicitudes, manifiestos, remesas, cumplidos pendientes, cola de envíos, terceros, vehículos, productos y
+  municipios. Las preguntas de ejemplo del asistente ("¿cuántos manifiestos…?", "¿qué falta por cumplir?", "¿cuántos envíos con error hay en
+  la cola?") siguen funcionando. Lo que **no** cubran las herramientas el asistente lo dice con honestidad; si falta un tipo de pregunta, se
+  agrega una herramienta.
+- **Identidad y permisos desde el servidor**: `responder(ctx, …)` recibe el contexto armado desde `req.user` (releído de la base en cada
+  petición, **no** de los claims del token). Al modelo solo se le ofrecen las herramientas que ese usuario puede usar (la misma regla que
+  protege las pantallas, `tienePagina`), y cada llamada se vuelve a comprobar al ejecutarla: una herramienta inventada o de otra página
+  devuelve el mismo error y no ejecuta ninguna consulta. El historial del navegador es solo texto de conversación (acotado); un cuerpo con
+  `rol`, `paginas`, `userId`… responde 400.
+- **Secretos y administración fuera del alcance**: ninguna herramienta toca `staff_users`, `maestro_empresa`, `auditoria`, intentos de login,
+  suscripciones push ni las tablas de incidentes; la cola no devuelve el contenido enviado. Un test lo comprueba sembrando marcas.
+- **Sesión de solo lectura**: cada conexión del pool del chat arranca con `SET SESSION TRANSACTION READ ONLY`; una escritura falla (error 1792)
+  aunque se usen las credenciales principales. Al arrancar el log avisa si no hay un `DB_READONLY_USER` distinto de `DB_USER`.
+- **Rate limit** del chat: ahora responde 429 (antes 400). Sigue en memoria por proceso (límite conocido; pendiente pasarlo a la base).
+- **Pendiente (no se omite en silencio):** la conversación del chat de datos no se persiste en el servidor (los reportes sí); el historial del
+  navegador no decide permisos, así que no afecta la seguridad.
+
+**Usuario de BD de solo lectura (recomendado; producción todavía no lo tiene).** Crea este usuario una vez, en phpMyAdmin, y ponlo en
+`DB_READONLY_USER` / `DB_READONLY_PASS`. Estas sentencias se generan del registro de herramientas y una prueba comprueba que no se
+desactualicen; reemplaza `<base_de_datos>` y la contraseña:
+
+```sql
+CREATE USER 'tms_ro'@'localhost' IDENTIFIED BY '<contraseña-larga-y-aleatoria>';
+GRANT SELECT ON `<base_de_datos>`.`cola_envios` TO 'tms_ro'@'localhost';
+GRANT SELECT ON `<base_de_datos>`.`manifiesto` TO 'tms_ro'@'localhost';
+GRANT SELECT ON `<base_de_datos>`.`municipio` TO 'tms_ro'@'localhost';
+GRANT SELECT ON `<base_de_datos>`.`producto` TO 'tms_ro'@'localhost';
+GRANT SELECT ON `<base_de_datos>`.`remesa` TO 'tms_ro'@'localhost';
+GRANT SELECT ON `<base_de_datos>`.`solicitud_servicio` TO 'tms_ro'@'localhost';
+GRANT SELECT ON `<base_de_datos>`.`tercero` TO 'tms_ro'@'localhost';
+GRANT SELECT ON `<base_de_datos>`.`vehiculo` TO 'tms_ro'@'localhost';
+```
+
+Las herramientas **exclusivas del propietario** (diagnóstico, evidencias, configuración) viven en un módulo aparte y nunca se registran aquí.
+
 ## Siguientes fases (en pruebas primero)
 
 3. Diagnóstico por reglas y explicación ·

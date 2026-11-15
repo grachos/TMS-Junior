@@ -414,30 +414,33 @@ defecto**; para activarlo:
    OPENROUTER_MODEL=deepseek/deepseek-chat-v3-0324:free   # gratis, con tool-calling
    ```
 3. **Muy recomendado — usuario de BD de solo lectura** (mínimo privilegio).
-   El chatbot ejecuta SELECTs que genera el modelo; con un usuario SELECT-only
-   un error del modelo no puede escribir ni leer tablas sensibles. En
-   phpMyAdmin → SQL (ajusta el nombre de la BD y la clave):
+   El chat **ya no escribe SQL libre**: usa herramientas tipadas con consultas fijas
+   (ver `docs/SOPORTE.md`, fase 3a), filtradas por los permisos de quien pregunta, y su
+   conexión arranca en modo **solo lectura**. Aun así, un usuario de BD con SELECT solo
+   sobre las tablas que lee el chat es la última barrera. En phpMyAdmin → SQL (reemplaza el
+   nombre de la BD y la clave; la lista sale del registro de herramientas y una prueba
+   comprueba que no se desactualice):
    ```sql
-   CREATE USER 'uXXXX_tms_ro'@'localhost' IDENTIFIED BY 'CLAVE_FUERTE';
-   GRANT SELECT ON uXXXX_light_tms.solicitud_servicio TO 'uXXXX_tms_ro'@'localhost';
-   GRANT SELECT ON uXXXX_light_tms.manifiesto          TO 'uXXXX_tms_ro'@'localhost';
-   GRANT SELECT ON uXXXX_light_tms.remesa              TO 'uXXXX_tms_ro'@'localhost';
-   GRANT SELECT ON uXXXX_light_tms.manifiesto_remesa   TO 'uXXXX_tms_ro'@'localhost';
-   GRANT SELECT ON uXXXX_light_tms.tercero             TO 'uXXXX_tms_ro'@'localhost';
-   GRANT SELECT ON uXXXX_light_tms.vehiculo            TO 'uXXXX_tms_ro'@'localhost';
-   GRANT SELECT ON uXXXX_light_tms.cola_envios         TO 'uXXXX_tms_ro'@'localhost';
-   GRANT SELECT ON uXXXX_light_tms.producto            TO 'uXXXX_tms_ro'@'localhost';
-   GRANT SELECT ON uXXXX_light_tms.municipio           TO 'uXXXX_tms_ro'@'localhost';
-   -- NO concedas staff_users ni maestro_empresa (credenciales).
+   CREATE USER 'tms_ro'@'localhost' IDENTIFIED BY '<contraseña-larga-y-aleatoria>';
+   GRANT SELECT ON `<base_de_datos>`.`cola_envios` TO 'tms_ro'@'localhost';
+   GRANT SELECT ON `<base_de_datos>`.`manifiesto` TO 'tms_ro'@'localhost';
+   GRANT SELECT ON `<base_de_datos>`.`municipio` TO 'tms_ro'@'localhost';
+   GRANT SELECT ON `<base_de_datos>`.`producto` TO 'tms_ro'@'localhost';
+   GRANT SELECT ON `<base_de_datos>`.`remesa` TO 'tms_ro'@'localhost';
+   GRANT SELECT ON `<base_de_datos>`.`solicitud_servicio` TO 'tms_ro'@'localhost';
+   GRANT SELECT ON `<base_de_datos>`.`tercero` TO 'tms_ro'@'localhost';
+   GRANT SELECT ON `<base_de_datos>`.`vehiculo` TO 'tms_ro'@'localhost';
+   -- NO concedas staff_users, maestro_empresa, auditoria ni las tablas de incidentes.
    ```
-   Luego, en variables de entorno:
+   Luego, en variables de entorno (la base de datos de hosting antepone un prefijo al
+   usuario, p. ej. `u123456789_tms_ro`: usa el nombre completo que muestre hPanel):
    ```env
-   DB_READONLY_USER=uXXXX_tms_ro
-   DB_READONLY_PASS=CLAVE_FUERTE
+   DB_READONLY_USER=<usuario_de_solo_lectura>
+   DB_READONLY_PASS=<su contraseña; solo aquí, nunca en el repositorio ni en el chat>
    ```
-   Si omites `DB_READONLY_*`, el chatbot usa el usuario principal (funciona,
-   pero pierdes la barrera de mínimo privilegio). El código igualmente bloquea
-   `SELECT`-only, una sola sentencia, y tablas/columnas sensibles.
+   Si omites `DB_READONLY_*`, el chat usa el usuario principal con la sesión en modo
+   **solo lectura** y al arrancar el log avisa (`[chat] ATENCIÓN…`): funciona y no puede
+   escribir, pero pierdes la última barrera de mínimo privilegio.
 
 Verificación: al entrar a la app aparece un botón de chat abajo a la derecha;
 `GET /api/chat/estado` responde `{"habilitado":true}`.
