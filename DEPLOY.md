@@ -251,6 +251,11 @@ SMTP_PORT=465
 SMTP_USER=no-responder@tu-dominio.com
 SMTP_PASS=<contraseña del buzón; solo aquí, nunca en el repositorio ni en el chat>
 SMTP_FROM="Konekto <no-responder@tu-dominio.com>"
+# Opcional: adonde llegan las respuestas de los usuarios (si no se define, el correo no lleva Reply-To).
+# SMTP_REPLY_TO=soporte@tu-dominio.com
+# Para que NO caiga en spam: usa el MISMO dominio en SMTP_FROM, en APP_URL y en el buzón (SMTP_USER), y deja
+# SPF + DKIM + DMARC en el DNS de ese dominio. Un dominio nuevo suele ir a spam al principio: marca los primeros
+# correos como "No es spam" y mejora con el uso.
 # Sin SMTP_* o sin APP_URL el sistema responde igual ("si el correo existe, te enviamos un enlace")
 # pero NO envía nada, y lo avisa en el log del servidor. Cada usuario necesita un correo REAL en
 # Usuarios (un correo como admin@tms.local no recibe nada).

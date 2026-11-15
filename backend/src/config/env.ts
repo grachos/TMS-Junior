@@ -51,7 +51,7 @@ export interface AppConfig {
   seguridad: { trustProxy: number; cspModo: string };
   /** Cloudflare Turnstile en el login. enforce=false es la palanca de emergencia (y el estado de un sitio aún sin claves). */
   /** Envío de correo (recuperar contraseña). Sin SMTP_HOST el correo no se envía (se avisa en el log). */
-  correo: { appUrl: string; host: string; port: number; secure: boolean; user: string; pass: string; from: string };
+  correo: { appUrl: string; host: string; port: number; secure: boolean; user: string; pass: string; from: string; replyTo: string };
   turnstile: { enforce: boolean; siteKey: string; secretKey: string; allowedHostnames: string[] };
   db: { host: string; port: number; name: string; user: string; pass: string; charset: string };
   /** Read-only DB user for the chatbot (least privilege). Falls back to the main user. */
@@ -109,6 +109,8 @@ export function config(): AppConfig {
       user: str('SMTP_USER', ''),
       pass: str('SMTP_PASS', ''),
       from: str('SMTP_FROM', str('SMTP_USER', '')),
+      // Opcional: adonde llegan las respuestas (si no se define, no se pone Reply-To).
+      replyTo: str('SMTP_REPLY_TO', ''),
     },
     turnstile: {
       // Apagado por defecto: un sitio sin claves no debe quedar bloqueado al recibir el código.
