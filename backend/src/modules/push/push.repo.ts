@@ -97,3 +97,30 @@ export async function enviarATodos(payload: PushPayload): Promise<void> {
     }),
   );
 }
+
+/**
+ * Envía una notificación SOLO a los usuarios indicados (destinatarios autorizados): lo privado de un incidente nunca
+ * se manda con enviarATodos. Si hay un fallo de entrega o no hay VAPID, no lanza (la notificación es un aviso, no una garantía).
+ */
+export async function enviarAUsuarios(usuarioIds: number[], payload: PushPayload): Promise<void> {
+  const ids = [...new Set(usuarioIds.filter((n) => Number.isInteger(n) && n > 0))];
+  if (ids.length === 0 || !ensureVapid()) return;
+  const [rows] = await db().query<RowDataPacket[]>(
+    `SELECT ps.id, ps.endpoint, ps.p256dh, ps.auth
+     FROM push_subscriptions ps
+     JOIN staff_users su ON su.id = ps.staff_user_id
+     WHERE su.activo = 1 AND ps.staff_user_id IN (?)`,
+    [ids],
+  );
+  const body = JSON.stringify(payload);
+  await Promise.all(
+    (rows as RowDataPacket[]).map(async (row) => {
+      try {
+        await webpush.sendNotification({ endpoint: String(row.endpoint), keys: { p256dh: String(row.p256dh), auth: String(row.auth) } }, body);
+      } catch (err) {
+        const status = (err as { statusCode?: number }).statusCode;
+        if (status === 404 || status === 410) await db().query('DELETE FROM push_subscriptions WHERE id = :id', { id: row.id });
+      }
+    }),
+  );
+}

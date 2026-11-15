@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json && npm run build:copy-assets",
+    "build": "tsc -p tsconfig.json && npm run build:copy-assets && node scripts/build-info.mjs",
     "build:copy-assets": "node -e \"const fs=require('fs');fs.mkdirSync('dist/modules/pdf/assets',{recursive:true});fs.copyFileSync('src/modules/pdf/render-worker.mjs','dist/modules/pdf/render-worker.mjs');for(const f of fs.readdirSync('src/modules/pdf/assets'))fs.copyFileSync('src/modules/pdf/assets/'+f,'dist/modules/pdf/assets/'+f)\"",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",

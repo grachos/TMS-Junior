@@ -123,6 +123,7 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v55_seguridad_acceso.sql   ← NUEVO — límites por IP/cuenta y auditoría de accesos del login. CORRER ANTES de desplegar el código; sin ella el login usa el límite anterior por correo (y avisa en el log)
    migracion_v56_recuperar_contrasena.sql   ← NUEVO — "Olvidé mi contraseña" por correo (enlaces de un solo uso y límites). CORRER ANTES de desplegar el código; sin ella solo falla esa función, el login sigue igual
    migracion_v57_propietario_sesiones.sql   ← NUEVO — identidad (uuid) de cada cuenta y revocación de sesiones; base del soporte del propietario único. CORRER ANTES de desplegar el código (requiere MariaDB 10.2+: `SELECT VERSION();`); sin ella el soporte queda denegado y el resto sigue igual
+   migracion_v58_incidentes.sql   ← NUEVO — incidentes y reportes de usuarios (soporte, fase 2). Repetible; sin ella la captura falla en silencio y los reportes responden con error, el resto de la app sigue
    productos.sql   ← SIEMPRE AL FINAL: catálogo de productos (solo carga si la tabla está vacía)
    ```
 
@@ -245,6 +246,10 @@ AUTH_IP_TOTAL_MAX=60
 # uuid de TU cuenta (SELECT uuid FROM staff_users WHERE email='...'). Una por sitio. Sin esto, o si no es válida, el
 # módulo de soporte queda DENEGADO para todos. No lo publiques.
 # PLATFORM_OWNER_UUID=
+
+# Soporte (opcionales): SITE_ID identifica la instalación en los incidentes (si falta se usa el dominio de APP_URL);
+# APP_COMMIT fija la versión desplegada (si falta se usa dist/build-info.json, escrito al compilar).
+# SITE_ID=
 
 # --- Recuperar contraseña por correo ("Olvidé mi contraseña") ---
 # Dirección pública del sitio, con https y sin barra final. El enlace del correo se arma con ESTO

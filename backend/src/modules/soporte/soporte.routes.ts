@@ -22,6 +22,7 @@ import {
 import { auditar, actorDe } from '../auditoria/auditoria.repo.js';
 import { hashIdentificador, limitesPorDefecto, marcarExito, registrarIntento } from '../auth/accesoGuard.js';
 import { MIN_PASSWORD } from '../auth/recuperacion.js';
+import { registrarRutasIncidentes } from '../incidentes/propietario.rutas.js';
 
 export const soporteRouter = Router();
 soporteRouter.use(requirePlatformOwner); // ← siempre la primera línea
@@ -87,3 +88,6 @@ soporteRouter.post(
     res.json({ ok: true });
   }),
 );
+
+// Fase 2: incidentes (privados del propietario; se registran sobre este router, ya protegido por requirePlatformOwner).
+registrarRutasIncidentes(soporteRouter);

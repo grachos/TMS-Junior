@@ -32,6 +32,8 @@ import { pushRouter } from './modules/push/push.routes.js';
 import { auditoriaRouter } from './modules/auditoria/auditoria.routes.js';
 import { impuestosRouter } from './modules/impuestos/impuestos.routes.js';
 import { soporteRouter } from './modules/soporte/soporte.routes.js';
+import { reportesRouter } from './modules/incidentes/reportes.routes.js';
+import { requestId } from './http/requestId.js';
 import { cabeceraCsp, cspModoDe, hashesDeIndex } from './http/seguridad.js';
 
 export function createApp() {
@@ -50,6 +52,7 @@ export function createApp() {
   // www host showed a "connection not secure" warning even though the cert is
   // valid. Forcing a single origin keeps every page (and every blob) on the
   // certificate-covered host.
+  app.use(requestId);
   app.use((req, res, next) => {
     const host = req.headers.host ?? '';
     if (host.startsWith('www.')) {
@@ -124,6 +127,7 @@ export function createApp() {
   api.use('/push', pushRouter);
   api.use('/auditoria', auditoriaRouter);
   api.use('/impuestos', impuestosRouter);
+  api.use('/reportes', reportesRouter); // reportes de usuarios (cualquier autenticado; solo ve los suyos)
   api.use('/soporte', soporteRouter); // privado del propietario (requirePlatformOwner en su primera línea)
   //   api.use('/vehiculos', vehiculoRouter) ... etc.
 
