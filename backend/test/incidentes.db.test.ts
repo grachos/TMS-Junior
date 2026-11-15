@@ -405,4 +405,22 @@ describe.skipIf(!RUN)('incidentes y reportes (fase 2a)', () => {
     const v = (await (await llamar('opera3', 'GET', `/api/reportes/${a.id}`)).json()) as { explicacion: Record<string, string | null> };
     expect(v.explicacion).toEqual(exp);
   });
+
+  it('"mi último error": solo quien lo vio recibe la explicación pública (lista blanca); otro usuario, un código inválido o inexistente → conocido:false', async () => {
+    const rid = `req-${azar(6)}`;
+    await provocar500(`fallo conocido ${azar(3).replace(/\d/g, 'k')}`, rid);
+    await esperarEvidencia(rid);
+    const [[inc]] = await db().query<RowDataPacket[]>('SELECT incidente_id AS id FROM incidente_evidencias WHERE request_id = ? LIMIT 1', [rid]);
+    const exp = { hecho: 'Al abrir Impuestos, la pantalla falló.', posibleCausa: null, causaConfirmada: null, accionTemporal: 'Reintenta en unos minutos.', estadoCorreccion: null };
+    expect((await llamar('dueno', 'PATCH', `/api/soporte/incidentes/${inc!.id}`, { explicacion: exp })).status).toBe(200);
+
+    const propio = (await (await llamar('admin1', 'GET', `/api/reportes/error/${rid}`)).json()) as Record<string, unknown>;
+    expect(propio.conocido).toBe(true);
+    expect(propio.explicacion).toMatchObject({ hecho: exp.hecho, accionTemporal: exp.accionTemporal });
+    expect(Object.keys(propio).sort()).toEqual(['conocido', 'estado', 'explicacion']); // nada técnico: ni sitio, versión, evidencia ni id
+    for (const quien of ['admin2', 'opera', 'dueno']) expect(await (await llamar(quien, 'GET', `/api/reportes/error/${rid}`)).json()).toEqual({ conocido: false });
+    expect(await (await llamar('admin1', 'GET', `/api/reportes/error/req-${azar(6)}`)).json()).toEqual({ conocido: false });
+    expect(await (await llamar('admin1', 'GET', `/api/reportes/error/${encodeURIComponent("x' OR 1=1 --")}`)).json()).toEqual({ conocido: false });
+    expect((await llamar(null, 'GET', `/api/reportes/error/${rid}`)).status).toBe(401);
+  });
 });

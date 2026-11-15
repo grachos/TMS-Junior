@@ -1,4 +1,5 @@
-import { CheckCircle2, AlertTriangle, X } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, LifeBuoy, X } from 'lucide-react';
+import { abrirReporte, reporteDisponible } from '../lib/reportarEvento';
 
 interface AlertProps {
   kind: 'ok' | 'err';
@@ -17,6 +18,15 @@ export function Alert({ kind, message, onClose }: AlertProps) {
     >
       {ok ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
       <span className="flex-1">{message}</span>
+      {!ok && reporteDisponible() && (
+        <button
+          type="button"
+          className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold underline underline-offset-2"
+          onClick={() => abrirReporte({ texto: `Me apareció este mensaje: «${message.slice(0, 300)}». ` })}
+        >
+          <LifeBuoy size={14} /> Reportar este error
+        </button>
+      )}
       {onClose && (
         <button onClick={onClose} aria-label="Cerrar">
           <X size={16} />

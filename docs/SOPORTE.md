@@ -226,6 +226,11 @@ Módulo aparte `backend/src/modules/soporteIa/` (no está en el registro de herr
 - Salida: se sanitiza y recorta; se guarda solo como texto para el propietario. **No** cambia confianza, estado, tipo, `corregible` ni la explicación pública, y no notifica.
 - Si el proveedor falla: 502 genérico (no se reenvía su mensaje).
 
+## Enlace "Reportar este error" y error conocido
+
+- Todo aviso rojo (`Alert` de error) muestra **"Reportar este error"** cuando hay sesión (el panel de reportes está montado): abre el chat en la pestaña Reportar con el mensaje ya escrito. El código técnico del último 5xx se adjunta solo.
+- Al abrir Reportar tras un error, `GET /api/reportes/error/:requestId` dice si ese error **del propio usuario** ya es un incidente conocido y, de serlo, se muestra la explicación pública en 5 partes. Siempre 200; de otro usuario, inexistente o inválido → `{conocido:false}`.
+
 ## Siguientes fases (en pruebas primero)
 
 4. Corrección con PR en un entorno aislado (GitHub Actions) · 5. Integración automática al sitio de pruebas.

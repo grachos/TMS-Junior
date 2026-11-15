@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Loader2, Send } from 'lucide-react';
 import { api, ApiError, ultimoRequestIdFallido } from '../../lib/api';
 import { useEnvioUnico } from '../../lib/useEnvioUnico';
@@ -15,6 +15,18 @@ export function ReportarProblema({ pantalla, inicial, alRegistrar }: { pantalla:
   const [registrado, setRegistrado] = useState<VistaReporte | null>(null);
   const envio = useEnvioUnico();
   const conCodigo = ultimoRequestIdFallido() !== null;
+  const [conocido, setConocido] = useState<VistaReporte | null>(null);
+
+  // Si el último error de ESTE usuario ya es un incidente conocido, se le muestra lo que se sabe (misma explicación en 5 partes).
+  useEffect(() => {
+    const rid = ultimoRequestIdFallido();
+    if (!rid) return;
+    let vivo = true;
+    void api<{ conocido: boolean; estado?: VistaReporte['estado']; explicacion?: VistaReporte['explicacion'] }>(`/reportes/error/${encodeURIComponent(rid)}`)
+      .then((r) => { if (vivo && r.conocido && r.estado && r.explicacion) setConocido({ id: 0, creado: '', pantalla: null, texto: '', estado: r.estado, explicacion: r.explicacion, mensajes: [], actualizado: '' }); })
+      .catch(() => { /* sin conexión: no se muestra nada extra */ });
+    return () => { vivo = false; };
+  }, []);
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
@@ -51,6 +63,12 @@ export function ReportarProblema({ pantalla, inicial, alRegistrar }: { pantalla:
 
   return (
     <form onSubmit={enviar} className="flex h-full flex-col gap-2 p-3">
+      {conocido && (
+        <div className="space-y-2 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
+          <p className="text-sm font-medium text-slate-700">Este error ya lo tenemos registrado. Esto es lo que sabemos:</p>
+          <ExplicacionReporte v={conocido} />
+        </div>
+      )}
       <p className="text-sm text-slate-600">Cuéntanos qué pasó. No incluyas contraseñas.</p>
       <p className="text-xs text-slate-400">
         Pantalla: <span className="font-mono">{pantalla}</span>
