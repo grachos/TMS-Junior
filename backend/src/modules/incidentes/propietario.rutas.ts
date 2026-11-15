@@ -9,6 +9,7 @@ import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
 import { db } from '../../db/pool.js';
 import { actorDe, auditar } from '../auditoria/auditoria.repo.js';
 import { aplicarBorrador, diagnosticarIncidente } from '../diagnostico/servicio.js';
+import { ExplicacionIaError, explicarConIa } from '../soporteIa/explicar.js';
 import { avisarUsuarios } from './notificar.js';
 import { TIPOS_INCIDENTE } from './clasificar.js';
 import {
@@ -88,6 +89,25 @@ export function registrarRutasIncidentes(router: Router): void {
       const d = await diagnosticarIncidente(idDe(req.params.id), req.user!.sub);
       if (!d) throw notFound('Incidente no encontrado.');
       res.json(d);
+    }),
+  );
+
+  /** Borrador con IA (solo para el propietario; no cambia nada del incidente). */
+  router.post(
+    '/incidentes/:id/explicar-ia',
+    asyncHandler(async (req, res) => {
+      try {
+        const r = await explicarConIa(idDe(req.params.id), req.user!.sub);
+        if (!r) throw notFound('Incidente no encontrado.');
+        res.json(r);
+      } catch (e) {
+        if (e instanceof ExplicacionIaError) {
+          const estado = e.codigo === 'pausa' ? 429 : e.codigo === 'proveedor' ? 502 : 409;
+          res.status(estado).json({ error: e.message });
+          return;
+        }
+        throw e;
+      }
     }),
   );
 
