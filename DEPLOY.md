@@ -256,10 +256,10 @@ AUTH_IP_TOTAL_MAX=60
 #   Ponla solo si dos sitios compartieran dominio o quieres un nombre más legible.
 # SITE_ID=trading-solucion
 #
-# APP_COMMIT = commit desplegado. NORMALMENTE NO HACE FALTA: al compilar, el build escribe dist/build-info.json con el
-#   commit (el build de Hostinger clona el repositorio, así que git está disponible). Pónla solo si en un incidente la
-#   versión aparece como "desconocida": copia el hash del commit que se está desplegando (el log del build lo muestra:
-#   "Checked out commit xxxxxxx") y recuerda actualizarla en cada despliegue.
+# APP_COMMIT = commit desplegado. Al compilar, el build intenta escribir dist/build-info.json con el commit (usa `git`);
+#   si en ese entorno no hay git, la versión queda como "desconocida" (no se adivina). Después del primer despliegue,
+#   abre un incidente y mira su versión: si es "desconocida", ponla a mano con el hash del commit desplegado (el log del
+#   build de Hostinger lo muestra: "Checked out commit xxxxxxx") y actualízala en cada despliegue.
 # APP_COMMIT=
 
 # --- Recuperar contraseña por correo ("Olvidé mi contraseña") ---
