@@ -62,7 +62,7 @@ export function ReportarProblema({ pantalla, inicial, alRegistrar }: { pantalla:
   }
 
   return (
-    <form onSubmit={enviar} className="flex h-full flex-col gap-2 p-3">
+    <form onSubmit={enviar} className="flex h-full flex-col gap-2 overflow-y-auto p-3">
       {conocido && (
         <div className="space-y-2 rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
           <p className="text-sm font-medium text-slate-700">Este error ya lo tenemos registrado. Esto es lo que sabemos:</p>
