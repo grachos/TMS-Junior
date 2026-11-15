@@ -48,6 +48,7 @@ const { createApp } = await import('../src/app.js');
 const { db, dbReadonly } = await import('../src/db/pool.js');
 const { signToken } = await import('../src/modules/auth/jwt.js');
 const { HERRAMIENTAS, TABLAS_CHAT, ejecutarHerramienta, herramientasParaModelo, sqlUsuarioSoloLectura, contextoDe } = await import('../src/modules/chat/herramientas.js');
+const { consultarSoloLectura } = await vi.importActual<typeof import('../src/modules/chat/chat.repo.js')>('../src/modules/chat/chat.repo.js');
 const { responder, SIN_ACCESO_A_DATOS } = await import('../src/modules/chat/chat.service.js');
 const { invalidate } = await import('../src/util/cache.js');
 const { claveCacheUsuario } = await import('../src/modules/auth/auth.repo.js');
@@ -238,6 +239,13 @@ describe.skipIf(!RUN)('chat de datos: herramientas tipadas y autorización del s
     const [r] = await db().query<ResultSetHeader>("INSERT INTO incidente_eventos (incidente_id, tipo) VALUES (0, 'prueba-rw')");
     expect(r.affectedRows).toBe(1);
     await db().query("DELETE FROM incidente_eventos WHERE incidente_id = 0 AND tipo = 'prueba-rw'");
+  });
+
+  it('guarda de último recurso: el ejecutor solo acepta UNA sentencia SELECT', async () => {
+    for (const sql of ["UPDATE producto SET nombre = 'x'", 'DELETE FROM municipio', 'SELECT 1; SELECT 2', 'SELECT 1; DROP TABLE producto', 'WITH x AS (SELECT 1) UPDATE producto SET nombre = 1', '  insert into producto values (1)']) {
+      await expect(consultarSoloLectura(sql, []), sql).rejects.toThrow(/solo se permite UNA sentencia SELECT/);
+    }
+    await expect(consultarSoloLectura('SELECT 1 AS uno', [])).resolves.toEqual([{ uno: 1 }]);
   });
 
   // ---------------------------------------------------------------- registro

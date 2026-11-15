@@ -178,7 +178,16 @@ preguntaba: cualquier usuario autenticado podía consultar datos de pantallas a 
 - **Pendiente (no se omite en silencio):** la conversación del chat de datos no se persiste en el servidor (los reportes sí); el historial del
   navegador no decide permisos, así que no afecta la seguridad.
 
-**Usuario de BD de solo lectura (recomendado; producción todavía no lo tiene).** Crea este usuario una vez, en phpMyAdmin, y ponlo en
+**Resultado real en Hostinger compartido: NO se puede crear el usuario de solo lectura.** Se probó `CREATE USER` desde phpMyAdmin en la
+base del sitio de pruebas y respondió `#1227 - Access denied; you need (at least one of) the CREATE USER privilege(s)`. El conector de
+Hostinger solo crea una base con su usuario y **todos** los permisos, sin `GRANT` por tabla; un segundo usuario así no aportaría nada.
+**Riesgo aceptado**, con estas protecciones que sí se tienen: el modelo no escribe SQL; herramientas con consulta fija y argumentos
+validados; permisos por usuario desde el servidor; la sesión del chat forzada a `READ ONLY` (error 1792 ante cualquier escritura); y una
+guarda que solo deja pasar UNA sentencia `SELECT`. Lo que falta es la barrera del usuario de base de datos con `SELECT` solo sobre algunas
+tablas; se lograría con un VPS o un plan con control de usuarios de base de datos. Para silenciar el aviso del arranque en un sitio que
+acepta este riesgo, pon `DB_READONLY_ACEPTADO=true`.
+
+**Si tu hosting SÍ permite crear usuarios (VPS, otro plan):** crea el usuario de BD de solo lectura así (producción todavía no lo tiene). Crea este usuario una vez, en phpMyAdmin, y ponlo en
 `DB_READONLY_USER` / `DB_READONLY_PASS`. Estas sentencias se generan del registro de herramientas y una prueba comprueba que no se
 desactualicen; reemplaza `<base_de_datos>` y la contraseña:
 

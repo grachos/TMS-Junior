@@ -14,8 +14,16 @@ import { dbReadonly } from '../../db/pool.js';
 
 const TIMEOUT_MS = 8000;
 
-/** Ejecuta una consulta FIJA con parámetros enlazados contra el pool de solo lectura. */
+/**
+ * Ejecuta una consulta FIJA con parámetros enlazados contra el pool de solo lectura.
+ *
+ * Guarda de último recurso (no es una frontera: las herramientas ya usan consultas fijas): exige UNA sola sentencia SELECT. Si alguien
+ * agregara después una herramienta que construyera SQL de otra forma, esto falla en voz alta en vez de ejecutarla.
+ */
 export async function consultarSoloLectura(sql: string, valores: (string | number)[]): Promise<Record<string, unknown>[]> {
+  if (!/^\s*select\b/i.test(sql) || sql.replace(/;\s*$/, '').includes(';')) {
+    throw new Error('consultarSoloLectura: solo se permite UNA sentencia SELECT.');
+  }
   const [rows] = await dbReadonly().query<RowDataPacket[]>({ sql, values: valores, timeout: TIMEOUT_MS });
   return (rows as Record<string, unknown>[]) ?? [];
 }

@@ -438,6 +438,9 @@ defecto**; para activarlo:
    DB_READONLY_USER=<usuario_de_solo_lectura>
    DB_READONLY_PASS=<su contraseña; solo aquí, nunca en el repositorio ni en el chat>
    ```
+   **En Hostinger compartido esto NO es posible** (`CREATE USER` responde #1227): ahí omite `DB_READONLY_*` y pon
+   `DB_READONLY_ACEPTADO=true` para dejar constancia del riesgo aceptado (ver `docs/SOPORTE.md`).
+
    Si omites `DB_READONLY_*`, el chat usa el usuario principal con la sesión en modo
    **solo lectura** y al arrancar el log avisa (`[chat] ATENCIÓN…`): funciona y no puede
    escribir, pero pierdes la última barrera de mínimo privilegio.
