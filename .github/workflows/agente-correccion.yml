@@ -30,14 +30,14 @@ jobs:
     timeout-minutes: 30
     env:
       # Sin estos secretos el trabajo termina limpio (no falla ni hace nada).
-      CLAVE_AGENTE: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAVE_AGENTE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       TOKEN_PR: ${{ secrets.AGENTE_GITHUB_TOKEN }}
     steps:
       - name: Verificar configuración
         id: cfg
         run: |
           if [ -z "$CLAVE_AGENTE" ] || [ -z "$TOKEN_PR" ]; then
-            echo "Faltan los secretos ANTHROPIC_API_KEY y/o AGENTE_GITHUB_TOKEN: el agente está apagado."
+            echo "Faltan los secretos CLAUDE_CODE_OAUTH_TOKEN y/o AGENTE_GITHUB_TOKEN: el agente está apagado."
             echo "listo=false" >> "$GITHUB_OUTPUT"
           else
             echo "listo=true" >> "$GITHUB_OUTPUT"
@@ -63,7 +63,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         if: steps.cfg.outputs.listo == 'true'
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.AGENTE_GITHUB_TOKEN }}
           branch_prefix: agente/
           base_branch: main
