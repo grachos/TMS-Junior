@@ -31,7 +31,9 @@ const { config } = await import('../src/config/env.js');
 
 const sufijo = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const correo = (n: string) => `own.${n}.${sufijo}@test.local`;
+const aleatoria = () => `${randomBytes(9).toString('base64url')}`; // contraseñas de prueba: nunca literales
 const claves: Record<string, string> = {};
+const K = { atacante: aleatoria(), larga: aleatoria(), otra: aleatoria(), recuperada: aleatoria(), nueva: aleatoria() };
 const ids: Record<string, number> = {};
 const tokens: Record<string, string> = {};
 const ips: string[] = [];
@@ -137,11 +139,11 @@ describe.skipIf(!RUN)('propietario único del módulo de soporte', () => {
     const antes = await fila('dueno');
     const intentos = [
       { email: 'atacante@evil.test' },
-      { password: 'ClaveDelAtacante-123' },
+      { password: K.atacante },
       { rol: 'operador' },
       { activo: false },
       { nombre: 'Suplantado' },
-      { email: 'atacante@evil.test', password: 'ClaveDelAtacante-123', rol: 'operador', activo: false },
+      { email: 'atacante@evil.test', password: K.atacante, rol: 'operador', activo: false },
     ];
     for (const i of intentos) {
       const r = await llamar(tokens.adminb!, 'PUT', `/api/usuarios/${ids.dueno}`, { email: correo('dueno'), nombre: 'dueno', rol: 'admin', paginas: null, activo: true, ...i });
@@ -149,7 +151,7 @@ describe.skipIf(!RUN)('propietario único del módulo de soporte', () => {
     }
     const despues = await fila('dueno');
     expect(despues).toEqual(antes);
-    expect(await bcrypt.compare('ClaveDelAtacante-123', despues.password_hash)).toBe(false);
+    expect(await bcrypt.compare(K.atacante, despues.password_hash)).toBe(false);
   });
 
   it('ni siquiera el propietario edita su cuenta por Usuarios (usa su flujo con reautenticación); no existe forma de eliminarla', async () => {
@@ -171,7 +173,7 @@ describe.skipIf(!RUN)('propietario único del módulo de soporte', () => {
   it('crear o editar cuentas con campos reservados se rechaza y NO crea un segundo propietario', async () => {
     const antes = await db().query<RowDataPacket[]>('SELECT COUNT(*) AS n FROM staff_users WHERE uuid = ?', [OWNER_UUID]);
     for (const extra of [{ uuid: OWNER_UUID }, { isOwner: true }, { supportOwner: true }, { sesion_version: 99 }, { platformOwner: OWNER_UUID }, { campoInventado: 1 }]) {
-      const r = await llamar(tokens.adminb!, 'POST', '/api/usuarios', { email: correo(`falso${Object.keys(extra)[0]}`), password: 'Clave-larga-123', nombre: 'Falso', rol: 'admin', ...extra });
+      const r = await llamar(tokens.adminb!, 'POST', '/api/usuarios', { email: correo(`falso${Object.keys(extra)[0]}`), password: K.larga, nombre: 'Falso', rol: 'admin', ...extra });
       expect(r.status, JSON.stringify(extra)).toBe(400);
       const e = await llamar(tokens.adminb!, 'PUT', `/api/usuarios/${ids.adminc}`, { email: correo('adminc'), nombre: 'adminc', rol: 'admin', paginas: null, activo: true, ...extra });
       expect(e.status, `PUT ${JSON.stringify(extra)}`).toBe(400);
@@ -184,7 +186,7 @@ describe.skipIf(!RUN)('propietario único del módulo de soporte', () => {
   });
 
   it('una cuenta nueva recibe su uuid de la base: nadie elige el suyo', async () => {
-    const r = await llamar(tokens.adminb!, 'POST', '/api/usuarios', { email: correo('nuevo'), password: 'Clave-larga-123', nombre: 'Nuevo', rol: 'operador' });
+    const r = await llamar(tokens.adminb!, 'POST', '/api/usuarios', { email: correo('nuevo'), password: K.larga, nombre: 'Nuevo', rol: 'operador' });
     expect(r.status).toBe(201);
     const [f] = await db().query<RowDataPacket[]>('SELECT uuid FROM staff_users WHERE email = ?', [correo('nuevo')]);
     expect(f[0]!.uuid).toMatch(/^[0-9a-f-]{36}$/);
@@ -240,7 +242,7 @@ describe.skipIf(!RUN)('propietario único del módulo de soporte', () => {
   it('cambiar la contraseña de otra cuenta, o recuperarla, cierra sus sesiones abiertas', async () => {
     const viejo = tokens.adminc!;
     expect((await llamar(viejo, 'GET', '/api/auth/me')).status).toBe(200);
-    expect((await llamar(tokens.adminb!, 'PUT', `/api/usuarios/${ids.adminc}`, { email: correo('adminc'), nombre: 'adminc', rol: 'admin', paginas: null, activo: true, password: 'Otra-clave-larga-1' })).status).toBe(200);
+    expect((await llamar(tokens.adminb!, 'PUT', `/api/usuarios/${ids.adminc}`, { email: correo('adminc'), nombre: 'adminc', rol: 'admin', paginas: null, activo: true, password: K.otra })).status).toBe(200);
     expect((await llamar(viejo, 'GET', '/api/auth/me')).status).toBe(401);
     // Recuperación por correo: la misma garantía.
     const sesionVieja = (await (await login('adminb')).json() as { token: string }).token;
@@ -253,7 +255,7 @@ describe.skipIf(!RUN)('propietario único del módulo de soporte', () => {
     // Se reclama el enlace desde la base: el token en claro solo existe en el correo, así que se emite uno de prueba.
     const tokenReset = randomBytes(32).toString('base64url');
     await db().query("INSERT INTO password_resets (usuario_id, token_hash, expira_en) VALUES (?, SHA2(?, 256), NOW() + INTERVAL 10 MINUTE)", [ids.adminb, tokenReset]);
-    expect(await restablecerContrasena(tokenReset, 'Clave-recuperada-123', ipUnica(), null)).toBe('OK');
+    expect(await restablecerContrasena(tokenReset, K.recuperada, ipUnica(), null)).toBe('OK');
     expect((await llamar(sesionVieja, 'GET', '/api/auth/me')).status).toBe(401);
   });
 
@@ -282,7 +284,7 @@ describe.skipIf(!RUN)('propietario único del módulo de soporte', () => {
 
   it('cambiar correo o contraseña cierra TODAS las sesiones del propietario; una sesión revocada no ejecuta nada', async () => {
     const t = tokens.dueno!;
-    const nueva = 'Clave-del-dueno-nueva-1';
+    const nueva = K.nueva;
     const r = await llamar(t, 'PUT', '/api/soporte/perfil', { passwordActual: claves.dueno, passwordNueva: nueva });
     expect(r.status).toBe(200);
     expect(((await r.json()) as { cerroSesiones: boolean }).cerroSesiones).toBe(true);
