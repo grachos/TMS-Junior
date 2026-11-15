@@ -205,8 +205,20 @@ GRANT SELECT ON `<base_de_datos>`.`vehiculo` TO 'tms_ro'@'localhost';
 
 Las herramientas **exclusivas del propietario** (diagnóstico, evidencias, configuración) viven en un módulo aparte y nunca se registran aquí.
 
+## Fase 3b — diagnóstico por reglas
+
+Motor **determinista** (sin IA): `backend/src/modules/diagnostico/`. Se ejecuta solo, en segundo plano, cuando un incidente es **nuevo o se reabre**, y a mano con "Diagnosticar ahora" (solo propietario).
+
+- **Confianza la decide el código**, nunca un modelo: `confirmada` solo si la regla comprobó el estado *actual* (p. ej. la tabla/columna sigue ausente en `information_schema`, la variable sigue sin definir); `probable` si hay indicios; `sin_evidencia` en otro caso. Un error de código nunca es "confirmado".
+- **Reglas** (`reglas.ts`, versión `VERSION_REGLAS`): migración pendiente (índice de migraciones generado en el build: `dist/migraciones-indice.json`), configuración, RNDC (caída del RNDC → no se toca código; consulta solo `ultimo_error`/estado de `cola_envios` y el catálogo `error_rndc`), infraestructura, proveedor de IA, código (versión/regresión), reportes de usuarios.
+- **Solo lectura**: las comprobaciones corren en `START TRANSACTION READ ONLY`. No reenvía documentos, no anula, no cambia estados operativos, no llama al RNDC ni al proveedor de IA.
+- **Efectos sobre el incidente**: `nuevo → en_diagnostico` (condicional; no pisa lo que el propietario ya movió). `corregible` solo **baja** (nunca sube) y solo con diagnóstico confirmado; una migración confirmada reclasifica `codigo → migracion`.
+- **Borrador público**: plantillas fijas por categoría+confianza (sin rutas, ids, códigos ni texto de la evidencia). "Usar como explicación pública" llena solo campos vacíos (o sobrescribe si se pide) y se calcula en el servidor con la categoría y confianza guardadas. **No notifica** a nadie.
+- Se guardan hasta 5 diagnósticos por incidente (`incidente_diagnosticos`, migración v59, repetible).
+- Límites: sin IA no explica errores nuevos; lo no reconocido queda `sin_evidencia` y pasa al propietario.
+
 ## Siguientes fases (en pruebas primero)
 
-3. Diagnóstico por reglas y explicación ·
+3c. Explicación con IA (borrador, nunca decide confianza) ·
 4. Corrección con PR en un entorno aislado (GitHub Actions) · 5. Integración automática al sitio de pruebas.
 El chat actual de datos **no** tiene herramientas técnicas: cuando las haya, vivirán solo en el contexto del propietario.

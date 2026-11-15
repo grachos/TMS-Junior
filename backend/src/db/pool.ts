@@ -67,6 +67,24 @@ export function dbReadonly(): Pool {
 }
 
 /**
+ * Ejecuta lecturas dentro de una transacción de SOLO LECTURA (`START TRANSACTION READ ONLY`): la base de datos misma impide que
+ * cambien nada. Usa el pool principal, así no depende de un usuario de BD aparte (que este hosting no permite crear).
+ */
+export async function leerSoloLectura<T>(fn: (conn: PoolConnection) => Promise<T>): Promise<T> {
+  const conn = await db().getConnection();
+  try {
+    await conn.query('START TRANSACTION READ ONLY');
+    try {
+      return await fn(conn);
+    } finally {
+      await conn.query('COMMIT').catch(() => undefined);
+    }
+  } finally {
+    conn.release();
+  }
+}
+
+/**
  * Reports whether the database is reachable, without throwing.
  * Port of db_disponible().
  */

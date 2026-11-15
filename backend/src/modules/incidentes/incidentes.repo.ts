@@ -47,7 +47,9 @@ export interface Ocurrencia {
 }
 
 /** Registra una ocurrencia: crea el incidente o suma al existente (un incidente cerrado que reaparece se reabre). */
-export async function registrarOcurrencia(o: Ocurrencia, exec: Q = db()): Promise<{ id: number; nuevo: boolean }> {
+export async function registrarOcurrencia(o: Ocurrencia, exec: Q = db()): Promise<{ id: number; nuevo: boolean; reabierto: boolean }> {
+  const [[previo]] = await exec.query<RowDataPacket[]>('SELECT estado FROM incidentes WHERE sitio = ? AND huella = ?', [o.sitio, o.huella]);
+  const reabierto = !!previo && ['verificado', 'cerrado'].includes(String(previo.estado));
   const [r] = await exec.query<ResultSetHeader>(
     `INSERT INTO incidentes (sitio, huella, tipo, origen, severidad, corregible, titulo, operacion, codigo, version_despliegue)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -71,7 +73,7 @@ export async function registrarOcurrencia(o: Ocurrencia, exec: Q = db()): Promis
       [id, id, MAX_EVIDENCIAS],
     );
   }
-  return { id, nuevo };
+  return { id, nuevo, reabierto };
 }
 
 export async function evento(incidenteId: number, tipo: string, detalle: string | null, actor: number | null, exec: Q = db()): Promise<void> {
@@ -193,7 +195,8 @@ export async function propietarioDetalle(id: number) {
     `SELECT r.id, r.usuario_id, su.nombre AS usuario_nombre, su.email AS usuario_email, r.texto, r.pantalla, r.request_id, r.created_at
      FROM incidente_reportes r LEFT JOIN staff_users su ON su.id = r.usuario_id WHERE r.incidente_id = ? ORDER BY r.id DESC`, [id]);
   const [mensajes] = await db().query<RowDataPacket[]>('SELECT * FROM incidente_mensajes WHERE incidente_id = ? ORDER BY id DESC LIMIT 200', [id]);
-  return { incidente: inc, eventos, evidencias, reportes, mensajes };
+  const { listarDiagnosticos } = await import('../diagnostico/servicio.js');
+  return { incidente: inc, eventos, evidencias, reportes, mensajes, diagnosticos: await listarDiagnosticos(id) };
 }
 
 export interface CambiosIncidente {

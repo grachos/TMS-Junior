@@ -132,7 +132,8 @@ describe.skipIf(!RUN)('incidentes y reportes (fase 2a)', () => {
     const lista = await esperarIncidentes(1);
     expect(lista).toHaveLength(1);
     const i = lista[0]!;
-    expect(i).toMatchObject({ tipo: 'codigo', origen: 'servidor', corregible: 1, ocurrencias: 1, estado: 'nuevo', sitio: 'sitio-test-a', version_despliegue: process.env.APP_COMMIT });
+    expect(i).toMatchObject({ tipo: 'codigo', origen: 'servidor', corregible: 1, ocurrencias: 1, sitio: 'sitio-test-a', version_despliegue: process.env.APP_COMMIT });
+    expect(['nuevo', 'en_diagnostico']).toContain(i.estado); // el diagnóstico automático (3b) puede avanzarlo
     expect(i.operacion).toBe('GET /api/impuestos/ica');
     const [ev] = await db().query<RowDataPacket[]>('SELECT * FROM incidente_evidencias WHERE incidente_id = ?', [i.id]);
     expect(ev).toHaveLength(1);

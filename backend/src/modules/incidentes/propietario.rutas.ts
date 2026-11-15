@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { asyncHandler, badRequest, notFound } from '../../http/errors.js';
 import { db } from '../../db/pool.js';
 import { actorDe, auditar } from '../auditoria/auditoria.repo.js';
+import { aplicarBorrador, diagnosticarIncidente } from '../diagnostico/servicio.js';
 import { avisarUsuarios } from './notificar.js';
 import { TIPOS_INCIDENTE } from './clasificar.js';
 import {
@@ -77,6 +78,30 @@ export function registrarRutasIncidentes(router: Router): void {
         avisados = usuarios.length;
       }
       res.json({ ok: true, estado: r.estadoAhora, avisados });
+    }),
+  );
+
+  /** Corre el diagnóstico por reglas ahora (solo lecturas; no envía nada al RNDC ni cambia estado operativo). */
+  router.post(
+    '/incidentes/:id/diagnosticar',
+    asyncHandler(async (req, res) => {
+      const d = await diagnosticarIncidente(idDe(req.params.id), req.user!.sub);
+      if (!d) throw notFound('Incidente no encontrado.');
+      res.json(d);
+    }),
+  );
+
+  /** Usa el borrador público del diagnóstico (plantillas fijas; la causa confirmada solo si la confianza guardada es "confirmada"). No notifica. */
+  router.post(
+    '/incidentes/:id/diagnosticos/:did/aplicar',
+    asyncHandler(async (req, res) => {
+      const id = idDe(req.params.id);
+      const p = z.object({ sobrescribir: z.boolean().optional() }).strict().safeParse(req.body ?? {});
+      if (!p.success) throw badRequest('Datos inválidos.');
+      const r = await aplicarBorrador(id, idDe(req.params.did), p.data, req.user!.sub);
+      if (!r) throw notFound('Diagnóstico no encontrado.');
+      await auditar(db(), actorDe(req), 'incidente.diagnostico_aplicado', 'incidente', id, `Incidente #${id}: borrador público aplicado (${r.campos.join(', ') || 'sin cambios'})`, { campos: r.campos });
+      res.json({ ok: true, campos: r.campos });
     }),
   );
 
