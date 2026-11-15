@@ -36,6 +36,7 @@ import { api } from '../lib/api';
 import { useTheme } from '../lib/theme';
 import { logoutWithSplash, useSplash } from '../lib/splash';
 import { ChatWidget } from './ChatWidget';
+import { RutaErrorBoundary } from './ErrorBoundary';
 import { KonektoMark, KonektoWordmark } from './Logo';
 import { IdleTimeout } from './IdleTimeout';
 import { NuevaVersion } from './NuevaVersion';
@@ -318,7 +319,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {open && <div className="fixed inset-0 z-20 bg-black/30 md:hidden" onClick={() => setOpen(false)} />}
 
       {/* Main */}
-      <main className="min-w-0 flex-1 overflow-auto p-4 md:p-6">{children}</main>
+      <main className="min-w-0 flex-1 overflow-auto p-4 md:p-6">
+        <RutaErrorBoundary>{children}</RutaErrorBoundary>
+      </main>
       </div>
 
       <ChatWidget />

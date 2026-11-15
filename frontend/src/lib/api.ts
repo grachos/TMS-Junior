@@ -7,13 +7,32 @@
 
 import { useAuthStore } from '../store/auth';
 import { logoutWithSplash } from './splash';
+import { telemetria } from './telemetriaApp';
 
 const BASE = '/api';
+
+/** Id de correlación por petición (el servidor lo conserva y lo devuelve; debe cumplir ^[A-Za-z0-9_-]{8,64}$). */
+function nuevoIdPeticion(): string {
+  try {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  } catch {
+    /* sin crypto.randomUUID */
+  }
+  return `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Último fallo 5xx (para prellenar un reporte con el id de correlación): vale unos minutos. */
+let ultimoFallo: { requestId: string; en: number } | null = null;
+export function ultimoRequestIdFallido(maxMs = 10 * 60_000): string | null {
+  return ultimoFallo && Date.now() - ultimoFallo.en < maxMs ? ultimoFallo.requestId : null;
+}
 
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    /** Identificador de correlación de la petición (X-Request-Id): une lo que ve el usuario con el incidente del servidor. */
+    public readonly requestId?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -107,6 +126,8 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
   const { token } = useAuthStore.getState();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (!opts.anonymous && token) headers.Authorization = `Bearer ${token}`;
+  const requestId = nuevoIdPeticion();
+  headers['X-Request-Id'] = requestId;
 
   const res = await fetch(buildUrl(path, opts.query), {
     method: opts.method ?? 'GET',
@@ -124,7 +145,13 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
   if (!res.ok) {
     const body = isJson && payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null;
     const message = String(body?.error ?? body?.mensaje ?? `Error ${res.status}`);
-    throw new ApiError(res.status, message);
+    const rid = String(body?.requestId ?? res.headers.get('x-request-id') ?? requestId);
+    // Solo los 5xx (fallos del servidor) y NUNCA las llamadas a /reportes (la telemetría no se reporta a sí misma).
+    if (res.status >= 500 && !path.startsWith('/reportes')) {
+      ultimoFallo = { requestId: rid, en: Date.now() };
+      void telemetria.reportar({ tipo: 'http_5xx', mensaje: `HTTP ${res.status} ${opts.method ?? 'GET'} ${path}`, requestId: rid });
+    }
+    throw new ApiError(res.status, message, rid);
   }
   return payload as T;
 }
