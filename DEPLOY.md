@@ -123,6 +123,7 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v55_seguridad_acceso.sql   ← NUEVO — límites por IP/cuenta y auditoría de accesos del login. CORRER ANTES de desplegar el código; sin ella el login usa el límite anterior por correo (y avisa en el log)
    migracion_v56_recuperar_contrasena.sql   ← NUEVO — "Olvidé mi contraseña" por correo (enlaces de un solo uso y límites). CORRER ANTES de desplegar el código; sin ella solo falla esa función, el login sigue igual
    migracion_v57_propietario_sesiones.sql   ← NUEVO — identidad (uuid) de cada cuenta y revocación de sesiones; base del soporte del propietario único. CORRER ANTES de desplegar el código (requiere MariaDB 10.2+: `SELECT VERSION();`); sin ella el soporte queda denegado y el resto sigue igual
+   migracion_v58_incidentes.sql   ← NUEVO — incidentes y reportes de usuarios (soporte, fase 2). Repetible; sin ella la captura falla en silencio y los reportes responden con error, el resto de la app sigue
    productos.sql   ← SIEMPRE AL FINAL: catálogo de productos (solo carga si la tabla está vacía)
    ```
 
@@ -245,6 +246,21 @@ AUTH_IP_TOTAL_MAX=60
 # uuid de TU cuenta (SELECT uuid FROM staff_users WHERE email='...'). Una por sitio. Sin esto, o si no es válida, el
 # módulo de soporte queda DENEGADO para todos. No lo publiques.
 # PLATFORM_OWNER_UUID=
+
+# --- Soporte: identidad del sitio y versión desplegada (OPCIONALES; ver docs/SOPORTE.md) ---
+# Cada incidente que registra el módulo de soporte guarda de QUÉ SITIO viene y QUÉ VERSIÓN estaba desplegada.
+#
+# SITE_ID = nombre corto y único de ESTE sitio (cada sitio tiene su base y sus incidentes; nunca se mezclan).
+#   Ejemplo: trading-solucion  (usa letras, números y guiones; máximo 80 caracteres).
+#   Si no la pones, se usa el dominio de APP_URL (por ejemplo tmslight.techcol-service.cc), que normalmente basta.
+#   Ponla solo si dos sitios compartieran dominio o quieres un nombre más legible.
+# SITE_ID=trading-solucion
+#
+# APP_COMMIT = commit desplegado. Al compilar, el build intenta escribir dist/build-info.json con el commit (usa `git`);
+#   si en ese entorno no hay git, la versión queda como "desconocida" (no se adivina). Después del primer despliegue,
+#   abre un incidente y mira su versión: si es "desconocida", ponla a mano con el hash del commit desplegado (el log del
+#   build de Hostinger lo muestra: "Checked out commit xxxxxxx") y actualízala en cada despliegue.
+# APP_COMMIT=
 
 # --- Recuperar contraseña por correo ("Olvidé mi contraseña") ---
 # Dirección pública del sitio, con https y sin barra final. El enlace del correo se arma con ESTO

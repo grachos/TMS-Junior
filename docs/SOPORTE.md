@@ -87,8 +87,50 @@ funciona · campos reservados → 400 y no se crea un segundo propietario · con
 sesiones revocadas no ejecutan nada · perfil con reautenticación y tope de intentos · auditoría de las acciones del propietario.
 Las defensas se rompieron a propósito para comprobar que las pruebas fallan.
 
+## Fase 2a — incidentes y reportes (backend)
+
+**Qué hay**: el servidor registra como *incidente* sus errores 5xx (sanitizados) y los usuarios pueden *reportar* un problema.
+La interfaz (Error Boundary, pestaña de reporte, consola) llega en la fase 2b.
+
+- **Correlación**: cada petición lleva `X-Request-Id` (se conserva el del navegador si es válido; si no, se genera) y los errores JSON
+  traen `requestId` (campo extra: las respuestas de siempre no cambian).
+- **Captura del servidor** (`errorMiddleware`): solo 5xx, **después** de responder, sin poder cambiar ni retrasar la respuesta; con
+  interruptor (si registrar falla, se calla ~60 s); nunca captura `/api/reportes` ni `/api/soporte`; los rechazos de negocio del RNDC no
+  se vuelven incidentes (ya viven en la cola de envíos).
+- **Agrupación**: UN incidente por (`sitio`, `huella`). La huella ignora ids, números y textos entre comillas; dos sitios nunca se mezclan.
+  Cuenta ocurrencias, guarda la **versión desplegada** (`APP_COMMIT` o `dist/build-info.json` que escribe el build; si no hay git queda
+  `desconocida`, no se adivina) y reabre un incidente verificado/cerrado si reaparece. Se conservan las últimas ~20 evidencias.
+- **Clasificación por reglas** (no IA): código, datos, permisos, migración, configuración, RNDC, proveedor de IA, infraestructura.
+  Migración pendiente, RNDC, IA, configuración e infraestructura quedan **no corregibles con código** (`corregible = 0`): un cambio de
+  código no las arregla y ocultarlas sería peor.
+- **Sanitización antes de guardar** (también del texto que escribe el usuario): JWT, Bearer, `clave=valor`, XML del RNDC, correos, uuids,
+  números largos y cadenas tipo clave de API se reemplazan; las rutas se normalizan (`/api/x/123` → `/api/x/:id`) y las pilas pierden las
+  rutas del servidor.
+- **Reportes de usuarios** (`/api/reportes`, cualquier usuario autenticado): `POST` (funciona aunque el chat de IA esté apagado o caído;
+  tope 5 cada 10 min por usuario, en la base), `GET` (mis reportes), `GET /:id` (solo el mío: de otro —**incluso un administrador**— responde
+  **404**). `POST /telemetria` recibe errores del navegador (autenticado, validado, 10 por minuto por usuario; un 5xx que el servidor ya
+  capturó no se duplica).
+- **Lo que ve el usuario** sale de una **lista blanca**: estado con etiqueta pública, su texto, los 5 campos de explicación (hecho observado,
+  posible causa, causa confirmada, acción temporal, estado de la corrección; vacíos si nadie los ha completado) y los mensajes públicos
+  de SU reporte. Nunca evidencias, pilas, notas internas, versión, sitio ni datos de otros usuarios (probado con un volcado).
+- **Consola del propietario** (en `soporteRouter`, ya protegido): `GET /api/soporte/incidentes`, `GET …/:id` (evidencias, eventos, reportes,
+  mensajes), `PATCH …/:id` (estado, severidad, tipo, corregible, explicación; auditado) y `POST …/:id/mensajes` (interno o público).
+- **Mensajes públicos atados al reporte**: lo que se le responde a un usuario no llega a otro que comparta el incidente.
+- **Avisos (push) solo a destinatarios concretos** (`enviarAUsuarios`; `enviarATodos` no se usa aquí): lo técnico solo al propietario
+  (resuelto por su uuid; sin propietario configurado no se avisa a nadie) y los avisos al usuario solo a quienes reportaron **ese**
+  incidente, **después** de guardar el cambio y con el estado releído. Una nota interna no avisa a nadie. Las etiquetas públicas no
+  prometen de más: "corregido" ≠ "publicado" ≠ "verificado".
+
+**Variables**: `SITE_ID` (opcional; si falta se usa el dominio de `APP_URL`) y `APP_COMMIT` (opcional; si falta se usa `build-info.json`).
+**Migración**: `database/migracion_v58_incidentes.sql` (repetible). Sin ella no se pierde nada: la captura falla en silencio y los reportes
+responden con error; el resto de la app sigue.
+
+**Límites conocidos**: los reportes de usuario sin un `X-Request-Id` de un error real se agrupan por pantalla (no por contenido);
+el diagnóstico automático y la explicación con IA llegan en la fase 3. El chat de datos actual **no** se tocó: la corrección de su
+contexto de autorización es de la fase 3, antes de darle herramientas.
+
 ## Siguientes fases (en pruebas primero)
 
-2. Incidentes y reporte de usuarios (aunque la IA esté caída) · 3. Diagnóstico por reglas y explicación ·
+2b. Interfaz: Error Boundary, telemetría del navegador, pestaña de reporte en el widget y consola · 3. Diagnóstico por reglas y explicación ·
 4. Corrección con PR en un entorno aislado (GitHub Actions) · 5. Integración automática al sitio de pruebas.
 El chat actual de datos **no** tiene herramientas técnicas: cuando las haya, vivirán solo en el contexto del propietario.

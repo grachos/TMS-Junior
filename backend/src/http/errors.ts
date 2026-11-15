@@ -8,6 +8,7 @@
 
 import type { NextFunction, Request, Response, RequestHandler } from 'express';
 import { config } from '../config/env.js';
+import { capturarErrorServidor } from '../modules/incidentes/captura.js';
 
 /** An error carrying an HTTP status code and a user-safe message. */
 export class AppError extends Error {
@@ -33,13 +34,20 @@ export function asyncHandler(fn: RequestHandler): RequestHandler {
 }
 
 /** Central error middleware. Mirrors the PHP catch: generic message + optional detail. */
-export function errorMiddleware(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
+export function errorMiddleware(err: unknown, req: Request, res: Response, _next: NextFunction): void {
   const debug = config().app.debug;
+  const requestId = typeof res.locals.requestId === 'string' ? res.locals.requestId : undefined;
+  /** Registra el fallo como incidente DESPUÉS de responder y sin poder afectar la respuesta (solo 5xx). */
+  const capturar = (status: number) => {
+    if (status >= 500) void capturarErrorServidor({ err, status, metodo: req.method, ruta: req.originalUrl, requestId, usuarioId: req.user?.sub ?? null });
+  };
   if (err instanceof AppError) {
     res.status(err.status).json({
       error: err.expose ? err.message : 'Ocurrió un error.',
       ...(debug && !err.expose ? { detail: err.message } : {}),
+      ...(requestId ? { requestId } : {}),
     });
+    capturar(err.status);
     return;
   }
   // A UNIQUE key rejected the write (e.g. a repeated manifiesto/remesa number,
@@ -48,7 +56,7 @@ export function errorMiddleware(err: unknown, _req: Request, res: Response, _nex
   if ((err as { code?: string } | null)?.code === 'ER_DUP_ENTRY') {
     // eslint-disable-next-line no-console
     console.error('[error] ER_DUP_ENTRY', err instanceof Error ? err.message : err);
-    res.status(409).json({ error: 'Ya existe un registro con ese número. No se guardó nada; intenta de nuevo.' });
+    res.status(409).json({ error: 'Ya existe un registro con ese número. No se guardó nada; intenta de nuevo.', ...(requestId ? { requestId } : {}) });
     return;
   }
   // A column/table the code expects is missing: the database is behind the code
@@ -60,7 +68,9 @@ export function errorMiddleware(err: unknown, _req: Request, res: Response, _nex
     res.status(500).json({
       error: 'La base de datos de este sitio no está al día: falta correr una migración. Avisa al responsable técnico.',
       ...(debug ? { detail: err instanceof Error ? err.message : String(err) } : {}),
+      ...(requestId ? { requestId } : {}),
     });
+    capturar(500);
     return;
   }
   const message = err instanceof Error ? err.message : String(err);
@@ -69,5 +79,7 @@ export function errorMiddleware(err: unknown, _req: Request, res: Response, _nex
   res.status(500).json({
     error: 'Ocurrió un error.',
     ...(debug ? { detail: message } : {}),
+    ...(requestId ? { requestId } : {}),
   });
+  capturar(500);
 }
