@@ -24,7 +24,15 @@ interface Detalle {
   evidencias: { id: number; tipo: string; contenido: string; request_id: string | null; version_despliegue: string | null; created_at: string }[];
   reportes: { id: number; usuario_nombre: string | null; usuario_email: string | null; texto: string; pantalla: string | null; request_id: string | null; created_at: string }[];
   mensajes: { id: number; reporte_id: number | null; visibilidad: string; autor: string; texto: string; created_at: string }[];
+  diagnosticos?: Diagnostico[];
 }
+
+interface Diagnostico {
+  id: number; categoria: string; confianza: 'confirmada' | 'probable' | 'sin_evidencia'; corregible_con_codigo: number | null; resumen: string;
+  posible_causa: string | null; causa_confirmada: string | null; accion_temporal: string | null; siguiente_paso: string | null;
+  hechos: { texto: string; fuente: string; observadoEn?: string }[]; referencias: { tipo?: string; valor?: string }[]; version_reglas: string; aplicado_en: string | null; created_at: string;
+}
+const COLOR_CONF: Record<string, string> = { confirmada: 'bg-emerald-100 text-emerald-800', probable: 'bg-amber-100 text-amber-800', sin_evidencia: 'bg-slate-100 text-slate-600' };
 
 const fecha = (v: string) => new Date(String(v).replace(' ', 'T')).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
 
@@ -149,6 +157,32 @@ function DetalleIncidente({ id, alCambiar }: { id: number; alCambiar: () => void
     }
   }
 
+  async function diagnosticar() {
+    if (!envio.tomar('diag')) return;
+    try {
+      await api(`/soporte/incidentes/${id}/diagnosticar`, { method: 'POST', body: {} });
+      await cargar();
+      alCambiar();
+    } catch (e) {
+      setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo diagnosticar.' });
+    } finally {
+      envio.soltar('diag');
+    }
+  }
+
+  async function usarBorrador(did: number, sobrescribir: boolean) {
+    if (!envio.tomar('borrador')) return;
+    try {
+      const r = await api<{ ok: boolean; campos: string[] }>(`/soporte/incidentes/${id}/diagnosticos/${did}/aplicar`, { method: 'POST', body: { sobrescribir } });
+      setFlash({ kind: 'ok', message: r.campos.length ? `Explicación pública actualizada (${r.campos.length} campo/s). No se avisó a nadie.` : 'No había campos vacíos que llenar.' });
+      await cargar();
+    } catch (e) {
+      setFlash({ kind: 'err', message: e instanceof ApiError ? e.message : 'No se pudo aplicar.' });
+    } finally {
+      envio.soltar('borrador');
+    }
+  }
+
   async function enviarMensaje() {
     if (!msg.texto.trim() || !envio.tomar('mensaje')) return;
     try {
@@ -192,6 +226,41 @@ function DetalleIncidente({ id, alCambiar }: { id: number; alCambiar: () => void
           <div><label className="field-label">Tipo</label><select className={campo} value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })}>{TIPOS.map((t) => <option key={t}>{t}</option>)}</select></div>
         </div>
         <label className="mt-2 flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={f.corregible} onChange={(e) => setF({ ...f, corregible: e.target.checked })} /> Corregible con cambios de código</label>
+      </section>
+
+      <section>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-celeste-700">Diagnóstico</h3>
+          <button className="btn-ghost" onClick={() => void diagnosticar()}>Diagnosticar ahora</button>
+        </div>
+        {(d.diagnosticos ?? []).length === 0 && <p className="text-sm text-slate-400">Todavía no hay diagnóstico.</p>}
+        <ul className="space-y-3">
+          {(d.diagnosticos ?? []).map((g, n) => (
+            <li key={g.id} className="rounded-lg border border-slate-200 p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className={`rounded-full px-2 py-0.5 font-semibold ${COLOR_CONF[g.confianza] ?? ''}`}>{g.confianza.replace('_', ' ')}</span>
+                <span className="text-slate-500">{g.categoria} · reglas v{g.version_reglas} · {fecha(g.created_at)}{n === 0 ? ' · más reciente' : ''}{g.aplicado_en ? ' · usado como explicación' : ''}</span>
+              </div>
+              <p className="mt-2 text-slate-800">{g.resumen}</p>
+              {g.causa_confirmada && <p className="mt-1 text-slate-700"><strong>Causa confirmada:</strong> {g.causa_confirmada}</p>}
+              {g.posible_causa && <p className="mt-1 text-slate-700"><strong>Posible causa:</strong> {g.posible_causa}</p>}
+              {g.accion_temporal && <p className="mt-1 text-slate-700"><strong>Acción temporal:</strong> {g.accion_temporal}</p>}
+              {g.siguiente_paso && <p className="mt-1 text-slate-700"><strong>Siguiente paso:</strong> {g.siguiente_paso}</p>}
+              <p className="mt-1 text-xs text-slate-500">Corregible con cambios de código: {g.corregible_con_codigo === null ? 'sin determinar' : g.corregible_con_codigo ? 'sí' : 'no'}</p>
+              {g.hechos.length > 0 && (
+                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-slate-600">
+                  {g.hechos.map((h, k) => <li key={k}>{h.texto} <span className="text-slate-400">({h.fuente}{h.observadoEn ? ` · ${fecha(h.observadoEn)}` : ''})</span></li>)}
+                </ul>
+              )}
+              {n === 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button className="btn-ghost" onClick={() => void usarBorrador(g.id, false)}>Usar como explicación pública</button>
+                  <button className="btn-ghost" onClick={() => { if (window.confirm('Esto reemplaza lo que ya escribiste en la explicación pública. ¿Continuar?')) void usarBorrador(g.id, true); }}>Usar y sobrescribir</button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section>

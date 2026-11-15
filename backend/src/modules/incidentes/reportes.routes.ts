@@ -13,6 +13,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { AppError, asyncHandler, badRequest, notFound } from '../../http/errors.js';
+import { diagnosticarEnSegundoPlano } from '../diagnostico/servicio.js';
 import { avisarPropietario } from './notificar.js';
 import {
   crearReporte, incidentePorRequestId, registrarOcurrencia, reportesRecientesDe, telemetriaRecienteDe, vistaMiReporte, vistaMisReportes,
@@ -57,6 +58,7 @@ reportesRouter.post(
       });
       incidenteId = r.id;
       nuevo = r.nuevo;
+      if (r.nuevo || r.reabierto) void diagnosticarEnSegundoPlano(r.id);
     }
     const id = await crearReporte({ incidenteId, usuarioId, texto: limpio, pantalla: pantallaLimpia, requestId: requestId ?? null });
     void avisarPropietario({ title: nuevo ? 'Nuevo incidente reportado' : 'Nuevo reporte de usuario', body: pantallaLimpia ?? 'Aplicación', url: '/soporte', tag: `incidente-${incidenteId}` });

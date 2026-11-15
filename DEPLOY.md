@@ -124,6 +124,7 @@ manifiestos, RNDC…) se preservan. Si es una instalación nueva:
    migracion_v56_recuperar_contrasena.sql   ← NUEVO — "Olvidé mi contraseña" por correo (enlaces de un solo uso y límites). CORRER ANTES de desplegar el código; sin ella solo falla esa función, el login sigue igual
    migracion_v57_propietario_sesiones.sql   ← NUEVO — identidad (uuid) de cada cuenta y revocación de sesiones; base del soporte del propietario único. CORRER ANTES de desplegar el código (requiere MariaDB 10.2+: `SELECT VERSION();`); sin ella el soporte queda denegado y el resto sigue igual
    migracion_v58_incidentes.sql   ← NUEVO — incidentes y reportes de usuarios (soporte, fase 2). Repetible; sin ella la captura falla en silencio y los reportes responden con error, el resto de la app sigue
+   migracion_v59_diagnosticos.sql   ← NUEVO — diagnósticos de incidentes (soporte, fase 3b). Repetible; sin ella el diagnóstico automático falla en silencio, el resto sigue
    productos.sql   ← SIEMPRE AL FINAL: catálogo de productos (solo carga si la tabla está vacía)
    ```
 

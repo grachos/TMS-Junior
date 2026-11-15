@@ -12,6 +12,7 @@
 
 import { clasificarError } from './clasificar.js';
 import { registrarOcurrencia } from './incidentes.repo.js';
+import { diagnosticarEnSegundoPlano } from '../diagnostico/servicio.js';
 import { avisarPropietario } from './notificar.js';
 import { huella, normalizarRuta, sanitizarPila, sanitizarTexto } from './sanitizar.js';
 import { sitioId, versionDespliegue } from './version.js';
@@ -50,6 +51,8 @@ export async function capturarErrorServidor(e: ErrorServidor): Promise<void> {
       severidad: c.severidad, corregible: c.corregible, titulo: `${operacion}: ${msg || 'error'}`.slice(0, 200), operacion, codigo: c.codigo,
       version: versionDespliegue(), evidencia: { tipo: 'servidor', contenido: evidencia, usuarioId: e.usuarioId ?? null, requestId: e.requestId ?? null },
     });
+    // Diagnóstico automático solo en un incidente NUEVO o REABIERTO (una regresión), no en cada ocurrencia.
+    if (r.nuevo || r.reabierto) void diagnosticarEnSegundoPlano(r.id);
     if (r.nuevo) void avisarPropietario({ title: 'Nuevo incidente', body: `${c.tipo}: ${operacion}`, url: '/soporte', tag: `incidente-${r.id}` });
   } catch {
     pausadoHasta = Date.now() + PAUSA_MS; // si registrar falla, se calla un minuto
