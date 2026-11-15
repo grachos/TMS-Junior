@@ -30,14 +30,19 @@ export const MIN_PASSWORD = 8;
 const hashToken = (t: string) => createHash('sha256').update(t).digest('hex');
 
 export function armarCorreo(nombre: string, enlace: string): Correo {
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   const asunto = 'Restablece tu contraseña de Konekto';
   const texto =
     `Hola ${nombre},\n\nRecibimos una solicitud para restablecer tu contraseña. Abre este enlace (vale ${VENCE_MIN} minutos y solo se puede usar una vez):\n\n${enlace}\n\n` +
     'Si no fuiste tú, ignora este mensaje: tu contraseña no cambia hasta que abras el enlace y elijas una nueva.\n\nKonekto';
-  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  // HTML mínimo y sin botones: el texto del enlace ES la dirección (un texto distinto de su destino es
+  // una señal que los filtros de spam castigan), sin imágenes ni estilos llamativos.
+  const url = esc(enlace);
   const html =
-    `<p>Hola ${esc(nombre)},</p><p>Recibimos una solicitud para restablecer tu contraseña. El enlace vale ${VENCE_MIN} minutos y solo se puede usar una vez:</p>` +
-    `<p><a href="${esc(enlace)}">Restablecer mi contraseña</a></p><p style="color:#64748b;font-size:13px">Si no fuiste tú, ignora este mensaje: tu contraseña no cambia hasta que abras el enlace y elijas una nueva.</p><p>Konekto</p>`;
+    `<p>Hola ${esc(nombre)},</p>` +
+    `<p>Recibimos una solicitud para restablecer tu contraseña de Konekto. Abre este enlace (vale ${VENCE_MIN} minutos y solo se puede usar una vez):</p>` +
+    `<p><a href="${url}">${url}</a></p>` +
+    '<p>Si no fuiste tú, ignora este mensaje: tu contraseña no cambia hasta que abras el enlace y elijas una nueva.</p><p>Konekto</p>';
   return { para: '', asunto, texto, html };
 }
 

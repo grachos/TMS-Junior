@@ -27,7 +27,17 @@ export async function enviarCorreo(c: Correo): Promise<boolean> {
       host: cfg.host, port: cfg.port, secure: cfg.secure, auth: { user: cfg.user, pass: cfg.pass },
       connectionTimeout: 10_000, socketTimeout: 15_000,
     });
-    await transporte.sendMail({ from: cfg.from, to: c.para, subject: c.asunto, text: c.texto, html: c.html });
+    await transporte.sendMail({
+      from: cfg.from,
+      to: c.para,
+      subject: c.asunto,
+      text: c.texto,
+      html: c.html,
+      ...(cfg.replyTo ? { replyTo: cfg.replyTo } : {}),
+      // Es un correo automático (no una conversación): así lo tratan bien los filtros y los
+      // autorespondedores no le contestan en bucle.
+      headers: { 'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All' },
+    });
     return true;
   } catch (e) {
     // El motivo va al log; nunca contiene la contraseña SMTP.
