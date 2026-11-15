@@ -247,9 +247,20 @@ AUTH_IP_TOTAL_MAX=60
 # módulo de soporte queda DENEGADO para todos. No lo publiques.
 # PLATFORM_OWNER_UUID=
 
-# Soporte (opcionales): SITE_ID identifica la instalación en los incidentes (si falta se usa el dominio de APP_URL);
-# APP_COMMIT fija la versión desplegada (si falta se usa dist/build-info.json, escrito al compilar).
-# SITE_ID=
+# --- Soporte: identidad del sitio y versión desplegada (OPCIONALES; ver docs/SOPORTE.md) ---
+# Cada incidente que registra el módulo de soporte guarda de QUÉ SITIO viene y QUÉ VERSIÓN estaba desplegada.
+#
+# SITE_ID = nombre corto y único de ESTE sitio (cada sitio tiene su base y sus incidentes; nunca se mezclan).
+#   Ejemplo: trading-solucion  (usa letras, números y guiones; máximo 80 caracteres).
+#   Si no la pones, se usa el dominio de APP_URL (por ejemplo tmslight.techcol-service.cc), que normalmente basta.
+#   Ponla solo si dos sitios compartieran dominio o quieres un nombre más legible.
+# SITE_ID=trading-solucion
+#
+# APP_COMMIT = commit desplegado. NORMALMENTE NO HACE FALTA: al compilar, el build escribe dist/build-info.json con el
+#   commit (el build de Hostinger clona el repositorio, así que git está disponible). Pónla solo si en un incidente la
+#   versión aparece como "desconocida": copia el hash del commit que se está desplegando (el log del build lo muestra:
+#   "Checked out commit xxxxxxx") y recuerda actualizarla en cada despliegue.
+# APP_COMMIT=
 
 # --- Recuperar contraseña por correo ("Olvidé mi contraseña") ---
 # Dirección pública del sitio, con https y sin barra final. El enlace del correo se arma con ESTO
