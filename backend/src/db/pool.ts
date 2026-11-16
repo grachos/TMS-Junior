@@ -25,6 +25,12 @@ export function db(): Pool {
     charset: cfg.charset === 'utf8mb4' ? 'utf8mb4' : cfg.charset,
     waitForConnections: true,
     connectionLimit: 10,
+    // Conexiones que el hosting corta por inactividad causaban ECONNRESET (500) en la siguiente petición: se mantienen vivas y
+    // las ociosas se cierran antes de que el servidor las mate.
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10_000,
+    maxIdle: 4,
+    idleTimeout: 30_000,
     // Keep DECIMAL/BIGINT as strings to preserve precision (mirrors PDO which
     // returns them as strings); the app formats money/ids as text for the RNDC.
     decimalNumbers: false,
