@@ -48,6 +48,11 @@ tocar a los otros. Con una rama compartida, un release despliega a **todos a la 
    aplicadas en la base de **ese** sitio **antes** de liberar. Si se indica
    `--sha=<commit>`, libera ese commit de `main` en vez de la punta.
 5. Las mismas migraciones se corren en **cada** base de producción antes de liberar a su sitio.
+
+   **Comprobar qué migraciones ya tiene una base** (solo lectura): `node database/verificar_migraciones.mjs > verificar.sql`
+   genera una consulta; pégala en phpMyAdmin → pestaña SQL con la base del sitio seleccionada. Devuelve una fila por
+   migración (desde la v54; `--desde=N` cambia el inicio): `APLICADA` o `FALTA` con los objetos que faltan. Solo ve tablas y
+   columnas nuevas: las migraciones que solo cambian datos o índices se listan aparte en un comentario y se revisan a mano.
 6. Verifica el despliegue del sitio (hPanel → Despliegues, o el log
    `[soporte] Propietario vinculado…`) y entra a probarlo.
 
