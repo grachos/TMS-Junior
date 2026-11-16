@@ -274,6 +274,10 @@ Variable del repo **`AGENTE_INTEGRACION`**: sin definir o `apagado` → no corre
 
 **Seguridad del propio workflow**: corre con secretos, así que solo compila y ejecuta `main` y lee el PR por la API; los datos que elige el agente (rama, archivos) nunca se interpolan en comandos; y el agente solo puede publicar con `git push origin agente/incidente-<n>` (rama exacta) y `gh pr create --base main --head agente/incidente-<n>`, de modo que no tiene forma de empujar a `main`.
 
+### Cómo comprobar que el ruleset de `main` protege de verdad
+
+La casilla "Require status checks to pass" no exige nada si la lista de checks está vacía: hay que **agregar** `build`, `db-tests` y `GitGuardian Security Checks`, con el estado **Active**, `main` como destino y la lista de bypass **vacía**. Para comprobarlo: abre un PR inofensivo (un cambio en docs) e intenta integrarlo **antes** de que terminen los checks; GitHub debe rechazarlo. Si lo integra, la protección no aplica a esa cuenta (que es la del token del agente). Esta comprobación se hizo tres veces: las dos primeras fallaron (lista de checks vacía), la tercera es la de este cambio.
+
 **Antes de activarlo** (lo confirmas tú):
 1. Que `main` esté protegido (ruleset con los checks `build` y `db-tests` obligatorios) y que **tu cuenta NO esté en la lista de bypass**: el token del agente es de tu cuenta; con bypass podría saltarse la protección.
 2. Variable `AGENTE_INTEGRACION=observar`, y espera a ver el veredicto de un PR real del agente (cuesta otra prueba del agente) antes de pasar a `activo`.
