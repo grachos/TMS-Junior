@@ -1,7 +1,7 @@
 name: Release a producción
 
 # Botón "Run workflow" (Actions → Release a producción). Ejecuta scripts/release.mjs: avance directo de la rama de producción a un commit de main.
-# Solo lo puede lanzar quien tenga permiso de escritura. Sin "confirmar" solo simula (no empuja nada).
+# Solo lo puede lanzar quien tenga permiso de escritura. Sin escribir la confirmación (el nombre de la rama) solo simula (no empuja nada).
 on:
   workflow_dispatch:
     inputs:
@@ -10,9 +10,9 @@ on:
         required: true
         default: produccion
       confirmar:
-        description: 'Marcar para liberar de verdad (desmarcado = simulación)'
-        type: boolean
-        default: false
+        description: 'Para liberar DE VERDAD escribe aquí el mismo nombre de la rama. Vacío = solo simulación'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -38,4 +38,5 @@ jobs:
           set -eu
           case "$RAMA" in produccion|todos|prod-[a-z0-9]*) ;; *) echo "Rama no válida"; exit 1;; esac
           git config user.name "release"; git config user.email "release@users.noreply.github.com"
-          if [ "$CONFIRMAR" = "true" ]; then node scripts/release.mjs "$RAMA" --confirmar; else node scripts/release.mjs "$RAMA"; fi
+          if [ -n "$CONFIRMAR" ] && [ "$CONFIRMAR" != "$RAMA" ]; then echo "La confirmación no coincide con la rama: no se libera nada."; exit 1; fi
+          if [ -n "$CONFIRMAR" ]; then node scripts/release.mjs "$RAMA" --confirmar; else node scripts/release.mjs "$RAMA"; fi
