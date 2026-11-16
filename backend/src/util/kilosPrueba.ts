@@ -6,5 +6,5 @@
 
 /** Da formato a un peso en kilos con separador de miles colombiano ("1.250 kg"). Si no se indica el valor, devuelve "0 kg". */
 export function formatearKilos(valor?: number): string {
-  return (valor as number).toLocaleString('es-CO', { maximumFractionDigits: 0 }) + ' kg';
+  return (valor ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 0 }) + ' kg';
 }
