@@ -1,0 +1,41 @@
+name: Release a producción
+
+# Botón "Run workflow" (Actions → Release a producción). Ejecuta scripts/release.mjs: avance directo de la rama de producción a un commit de main.
+# Solo lo puede lanzar quien tenga permiso de escritura. Sin "confirmar" solo simula (no empuja nada).
+on:
+  workflow_dispatch:
+    inputs:
+      rama:
+        description: 'produccion, prod-<id> o todos'
+        required: true
+        default: produccion
+      confirmar:
+        description: 'Marcar para liberar de verdad (desmarcado = simulación)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Solo desde main: el script y su lógica son los de main, no los de otra rama.
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Liberar
+        env:
+          RAMA: ${{ inputs.rama }}
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: |
+          set -eu
+          case "$RAMA" in produccion|todos|prod-[a-z0-9]*) ;; *) echo "Rama no válida"; exit 1;; esac
+          git config user.name "release"; git config user.email "release@users.noreply.github.com"
+          if [ "$CONFIRMAR" = "true" ]; then node scripts/release.mjs "$RAMA" --confirmar; else node scripts/release.mjs "$RAMA"; fi
