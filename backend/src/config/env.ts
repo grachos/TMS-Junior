@@ -76,6 +76,8 @@ export interface AppConfig {
   soporteIa: { habilitado: boolean; modelo: string };
   /** Fase 4: crear issues sanitizados en GitHub para el agente de corrección. Opt-in. */
   soporteGithub: { habilitado: boolean; token: string; repo: string; apiUrl: string; repoPrivado: boolean };
+  /** TEMPORAL: ruta de la prueba del flujo de soporte en producción (se elimina al terminar). Apagada por defecto. */
+  pruebaKilosHabilitada: boolean;
 }
 
 let cached: AppConfig | null = null;
@@ -185,6 +187,7 @@ export function config(): AppConfig {
       habilitado: bool('SOPORTE_IA_HABILITADO', false),
       modelo: str('SOPORTE_IA_MODELO', ''),
     },
+    pruebaKilosHabilitada: bool('PRUEBA_KILOS_HABILITADA', false),
     soporteGithub: {
       habilitado: bool('GITHUB_ISSUES_HABILITADO', false),
       // Token de grano fino con SOLO "Issues: write" en este repositorio.
