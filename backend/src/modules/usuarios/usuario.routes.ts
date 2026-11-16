@@ -8,11 +8,12 @@
  *   PUT  /api/usuarios/:id      update (profile, rol, paginas, activo, password)
  */
 
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { asyncHandler, badRequest, forbidden, notFound } from '../../http/errors.js';
 import { requireRole } from '../auth/auth.middleware.js';
+import { esPropietario } from '../auth/propietario.guard.js';
 import { withTransaction } from '../../db/pool.js';
 import { actorDe, auditar, cambios } from '../auditoria/auditoria.repo.js';
 import { ACCIONES, ACCIONES_DEF, ACCIONES_POR_DEFECTO } from '../auth/permisos.js';
@@ -50,10 +51,14 @@ usuarioRouter.get(
   }),
 );
 
+/** Solo el propietario ve su propio correo en Usuarios; el SERVIDOR lo decide (relee la cuenta), no el navegador. */
+const ocultarCorreoPropietario = async (req: Request): Promise<boolean> => !(await esPropietario(req.user!.sub, req.user!.sv ?? 0));
+
 usuarioRouter.get(
   '/',
-  asyncHandler(async (_req, res) => {
-    res.json((await listUsers()).map(toPublic));
+  asyncHandler(async (req, res) => {
+    const ocultar = await ocultarCorreoPropietario(req);
+    res.json((await listUsers()).map((u) => toPublic(u, ocultar)));
   }),
 );
 
@@ -62,7 +67,7 @@ usuarioRouter.get(
   asyncHandler(async (req, res) => {
     const u = await findById(Number(req.params.id));
     if (!u) throw notFound('Usuario no encontrado.');
-    res.json(toPublic(u));
+    res.json(toPublic(u, await ocultarCorreoPropietario(req)));
   }),
 );
 

@@ -6,7 +6,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../http/errors.js';
 import { requireAccion } from '../auth/auth.middleware.js';
-import { esPropietario } from '../auth/propietario.guard.js';
+import { cuentaDelPropietario, esPropietario } from '../auth/propietario.guard.js';
 import { accionesRegistradas, listar } from './auditoria.repo.js';
 
 export const auditoriaRouter = Router();
@@ -36,6 +36,7 @@ auditoriaRouter.get(
       page: entero(q.page),
       pageSize: entero(q.pageSize),
       ocultarSoporte,
+      ocultarPropietario: ocultarSoporte ? await cuentaDelPropietario() : null, // quien consulta no es el propietario
     });
     res.json({ items, total, acciones: await accionesRegistradas(ocultarSoporte) });
   }),

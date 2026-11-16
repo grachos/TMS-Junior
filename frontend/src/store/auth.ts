@@ -31,6 +31,8 @@ export interface StaffUser {
   permisos?: Accion[];
   /** El servidor la marca en la cuenta del propietario: no se edita desde Usuarios. */
   protegido?: boolean;
+  /** El servidor oculta el correo de la cuenta protegida a quien no es el propietario (viene vacío). */
+  correoOculto?: boolean;
   activo: 0 | 1;
   created_at: string;
 }

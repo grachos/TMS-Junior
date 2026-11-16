@@ -93,7 +93,7 @@ export default function UsuariosList() {
                     {u.nombre}
                     {u.id === currentUserId && <span className="ml-2 text-xs text-slate-400">(tú)</span>}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{u.email}</td>
+                  <td className="px-4 py-3 text-slate-600">{u.correoOculto ? <span className="italic text-slate-400">Oculto</span> : u.email}</td>
                   <td className="px-4 py-3">
                     {u.rol === 'admin' ? (
                       <span className="flex items-center gap-1 rounded-full bg-celeste-100 px-2 py-0.5 text-xs font-medium text-celeste-700">

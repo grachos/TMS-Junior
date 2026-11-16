@@ -47,6 +47,18 @@ export async function esPropietario(userId: number, sesionVersionToken: number):
   return Number(fila.sesion_version ?? 0) === Number(sesionVersionToken ?? 0);
 }
 
+/** La cuenta del propietario (id y correo), leída por su uuid; null si no está configurado o no hay una cuenta activa que coincida. */
+export async function cuentaDelPropietario(): Promise<{ id: number; email: string } | null> {
+  const v = vinculoPropietario();
+  if (!v.ok) return null;
+  try {
+    const [rows] = await db().query<RowDataPacket[]>('SELECT id, email FROM staff_users WHERE uuid = ? AND activo = 1 LIMIT 2', [v.uuid]);
+    return rows.length === 1 ? { id: Number(rows[0]!.id), email: String(rows[0]!.email ?? '') } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Va DESPUÉS de requireAuth. Todo endpoint privado de soporte pasa por aquí. */
 export const requirePlatformOwner: RequestHandler = (req: Request, _res: Response, next: NextFunction) => {
   if (!req.user) return next(unauthorized());
