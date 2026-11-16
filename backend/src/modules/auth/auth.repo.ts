@@ -46,13 +46,16 @@ export interface StaffUser {
 
 /** Public shape returned to clients (never leaks the password hash). */
 /** `permisos` = acciones que el usuario puede ejecutar HOY (ya resueltas: admin todas, operador su lista o los valores por defecto). La interfaz solo lee esto. */
-export type StaffUserPublic = Omit<StaffUser, 'password_hash' | 'uuid' | 'sesion_version'> & { permisos: Accion[]; protegido: boolean };
+export type StaffUserPublic = Omit<StaffUser, 'password_hash' | 'uuid' | 'sesion_version'> & { permisos: Accion[]; protegido: boolean; correoOculto?: boolean };
 
-export function toPublic(u: StaffUser): StaffUserPublic {
+export function toPublic(u: StaffUser, ocultarCorreoProtegido = false): StaffUserPublic {
   // El uuid y la versión de sesión NUNCA salen por la API (ni para otros administradores). `protegido` solo
   // dice, calculado por el servidor, que esta cuenta no se puede modificar desde Usuarios.
   const { password_hash: _p, uuid, sesion_version: _s, ...rest } = u;
-  return { ...rest, permisos: ACCIONES.filter((a) => tieneAccion(u, a)), protegido: coincidePropietario(uuid) };
+  const protegido = coincidePropietario(uuid);
+  const base = { ...rest, permisos: ACCIONES.filter((a) => tieneAccion(u, a)), protegido };
+  // El correo del propietario no se muestra a otros administradores (cada sitio de cliente tiene los suyos): sale vacío y marcado.
+  return protegido && ocultarCorreoProtegido ? { ...base, email: '', correoOculto: true } : base;
 }
 
 /**

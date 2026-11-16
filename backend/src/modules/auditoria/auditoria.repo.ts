@@ -107,8 +107,20 @@ export interface FiltrosAuditoria {
 /** Lo que hace el propietario en soporte (incidentes, su perfil/sesiones) lo ve SOLO él: la pantalla Actividad lo oculta a los demás. */
 const SOLO_PROPIETARIO = "accion NOT LIKE 'incidente.%' AND accion NOT LIKE 'propietario.%' AND entidad NOT IN ('incidente', 'incidentes')";
 
-/** Paginated, filterable listing for the activity viewer (newest first). */
-export async function listar(f: FiltrosAuditoria & { ocultarSoporte?: boolean }): Promise<{ items: RowDataPacket[]; total: number }> {
+const ETIQUETA_PROTEGIDA = 'Cuenta protegida';
+const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Quita el correo de la cuenta protegida de un texto (descripción o detalle JSON), sin distinguir mayúsculas. */
+export function sinCorreoProtegido(valor: unknown, correo: string): unknown {
+  if (!correo) return valor;
+  const re = new RegExp(escapar(correo), 'gi');
+  if (typeof valor === 'string') return valor.replace(re, ETIQUETA_PROTEGIDA);
+  if (valor && typeof valor === 'object') return JSON.parse(JSON.stringify(valor).replace(re, ETIQUETA_PROTEGIDA));
+  return valor;
+}
+
+/** Paginated, filterable listing for the activity viewer (newest first). `ocultarPropietario`: quien consulta NO es el propietario. */
+export async function listar(f: FiltrosAuditoria & { ocultarSoporte?: boolean; ocultarPropietario?: { id: number; email: string } | null }): Promise<{ items: RowDataPacket[]; total: number }> {
   const where: string[] = f.ocultarSoporte ? [SOLO_PROPIETARIO] : [];
   const params: unknown[] = [];
   if (f.usuarioId) { where.push('usuario_id = ?'); params.push(f.usuarioId); }
@@ -117,7 +129,16 @@ export async function listar(f: FiltrosAuditoria & { ocultarSoporte?: boolean })
   if (f.entidadId) { where.push('entidad_id = ?'); params.push(f.entidadId); }
   if (f.desde) { where.push('created_at >= ?'); params.push(`${f.desde} 00:00:00`); }
   if (f.hasta) { where.push('created_at < DATE_ADD(?, INTERVAL 1 DAY)'); params.push(f.hasta); }
-  if (f.q) { where.push('(descripcion LIKE ? OR usuario_email LIKE ? OR entidad_id = ?)'); params.push(`%${f.q}%`, `%${f.q}%`, f.q); }
+  const prop = f.ocultarPropietario ?? null;
+  if (f.q) {
+    if (prop) {
+      // La búsqueda NO puede servir para adivinar el correo del propietario: el texto se busca ya sin ese correo, y el correo de sus filas no cuenta.
+      where.push("(REPLACE(LOWER(descripcion), ?, '') LIKE ? OR ((usuario_id IS NULL OR usuario_id <> ?) AND usuario_email LIKE ?) OR entidad_id = ?)");
+      params.push(prop.email.toLowerCase() || '\u0000', `%${f.q.toLowerCase()}%`, prop.id, `%${f.q}%`, f.q);
+    } else {
+      where.push('(descripcion LIKE ? OR usuario_email LIKE ? OR entidad_id = ?)'); params.push(`%${f.q}%`, `%${f.q}%`, f.q);
+    }
+  }
   const sqlWhere = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const pageSize = Math.min(Math.max(f.pageSize ?? 50, 1), 200);
   const page = Math.max(f.page ?? 1, 1);
@@ -127,6 +148,13 @@ export async function listar(f: FiltrosAuditoria & { ocultarSoporte?: boolean })
      FROM auditoria ${sqlWhere} ORDER BY id DESC LIMIT ? OFFSET ?`,
     [...params, pageSize, (page - 1) * pageSize],
   );
+  if (prop) {
+    for (const it of items) {
+      if (Number(it.usuario_id) === prop.id) it.usuario_email = ETIQUETA_PROTEGIDA;
+      it.descripcion = sinCorreoProtegido(it.descripcion, prop.email);
+      it.detalle = sinCorreoProtegido(it.detalle, prop.email);
+    }
+  }
   return { items, total: Number(t?.n ?? 0) };
 }
 
