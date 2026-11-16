@@ -6,5 +6,5 @@
 
 /** Da formato de pesos colombianos a un valor. Si no se indica el valor, devuelve "$0". */
 export function formatearPeso(valor?: number): string {
-  return '$' + (valor as number).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+  return '$' + (valor ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 0 });
 }
