@@ -189,7 +189,8 @@ export function config(): AppConfig {
       habilitado: bool('GITHUB_ISSUES_HABILITADO', false),
       // Token de grano fino con SOLO "Issues: write" en este repositorio.
       token: str('GITHUB_ISSUES_TOKEN', ''),
-      repo: str('GITHUB_ISSUES_REPO', 'grachos/TMS-Junior'),
+      // Sin valor por defecto: el nombre del repositorio no se escribe en el código (obligatorio con GITHUB_ISSUES_HABILITADO).
+      repo: str('GITHUB_ISSUES_REPO', ''),
       apiUrl: str('GITHUB_API_URL', 'https://api.github.com'),
       // Solo con repositorio PRIVADO el issue lleva evidencia sanitizada; en uno público va un cuerpo mínimo.
       repoPrivado: bool('GITHUB_REPO_PRIVADO', false),
