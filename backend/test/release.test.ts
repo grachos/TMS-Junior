@@ -119,6 +119,12 @@ describe('scripts/release.mjs', () => {
 
   it('una rama de sitio nueva (prod-09) se crea con el commit probado; si ya está al día no hace nada', () => {
     expect(existeRemoto('prod-09')).toBe(false);
+    const sim = correr('prod-09'); // simulación de un sitio nuevo: no lista migraciones sueltas
+    expect(sim.codigo).toBe(0);
+    expect(sim.salida).toMatch(/Sitio nuevo/);
+    expect(sim.salida).toMatch(/instalacion_nueva\.sql/);
+    expect(sim.salida).not.toMatch(/migracion_v70_nueva\.sql|ANTES de liberar/);
+    expect(existeRemoto('prod-09')).toBe(false);
     expect(correr('prod-09', '--confirmar').codigo).toBe(0);
     expect(remoto('prod-09')).toBe(c.c3);
     const otra = correr('prod-09', '--confirmar');

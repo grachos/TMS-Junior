@@ -61,11 +61,15 @@ for (const rama of ramas) {
 // 2) Mostrar qué se libera.
 for (const { rama, actual } of plan) {
   console.log(`\n→ ${rama}: ${actual ? actual.slice(0, 12) : '(rama nueva)'} → ${commit.slice(0, 12)}`);
-  const rango = actual ? `${actual}..${commit}` : commit;
-  const cambios = git('log', '--oneline', '--no-decorate', '-n', '30', rango);
+  if (!actual) {
+    // Sitio nuevo: no hay "cambios desde" ni migraciones pendientes que listar; su base se instala entera de una vez.
+    console.log(`    ${git('log', '--oneline', '--no-decorate', '-n', '1', commit)}`);
+    console.log('  ℹ Sitio nuevo: su base de datos se instala con instalacion_nueva.sql (node database/generar_instalacion.mjs), no con migraciones sueltas.');
+    continue;
+  }
+  const cambios = git('log', '--oneline', '--no-decorate', '-n', '30', `${actual}..${commit}`);
   console.log(cambios ? cambios.split('\n').map((l) => `    ${l}`).join('\n') : '    (sin commits nuevos)');
-  const migraciones = (actual ? git('diff', '--name-only', actual, commit, '--', 'database/') : git('ls-tree', '-r', '--name-only', commit, 'database/'))
-    .split('\n').filter((f) => /migracion_v\d+.*\.sql$/.test(f));
+  const migraciones = git('diff', '--name-only', actual, commit, '--', 'database/').split('\n').filter((f) => /migracion_v\d+.*\.sql$/.test(f));
   if (migraciones.length) console.log(`  ⚠ Migraciones nuevas o cambiadas: aplícalas en la base de ESTE sitio ANTES de liberar:\n${migraciones.map((m) => `      ${m}`).join('\n')}`);
 }
 if (!plan.length) { console.log('\nNada que liberar.'); process.exit(0); }
