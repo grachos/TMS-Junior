@@ -58,9 +58,10 @@ export function generarSql(dir, desde = 54) {
     }
   }
   return [
-    `-- Verificación de migraciones desde la v${desde} (SOLO LECTURA: solo consulta information_schema; no cambia nada).`,
-    '-- Pégala en phpMyAdmin → pestaña SQL, con la base del sitio seleccionada. `faltan = 0` = migración aplicada.',
-    sinObjetos.length ? `-- No verificables por esquema (no crean tablas ni columnas; revísalas a mano): ${sinObjetos.join(', ')}` : '-- Todas las migraciones del rango crean tablas o columnas.',
+    // Comentarios en ASCII puro (sin acentos ni símbolos): phpMyAdmin con otra codificación no debe fallar por ellos.
+    `-- Verificacion de migraciones desde la v${desde} (SOLO LECTURA: solo consulta information_schema, no cambia nada).`,
+    '-- Pegala en phpMyAdmin, pestana SQL, con la base del sitio seleccionada. faltan = 0 significa migracion aplicada.',
+    sinObjetos.length ? `-- No verificables por esquema (no crean tablas ni columnas; revisalas a mano): ${sinObjetos.join(', ')}` : '-- Todas las migraciones del rango crean tablas o columnas.',
     'SELECT migracion, COUNT(*) AS objetos, SUM(presente = 0) AS faltan,',
     "       IF(SUM(presente = 0) = 0, 'APLICADA', 'FALTA') AS estado,",
     "       GROUP_CONCAT(IF(presente = 0, objeto, NULL) SEPARATOR ', ') AS objetos_que_faltan",

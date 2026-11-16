@@ -27,6 +27,8 @@ describe('verificar_migraciones.mjs', () => {
     // cubre cada migración del rango que crea algo
     for (const v of ['v54_', 'v57_', 'v58_', 'v59_', 'v60_', 'v61_']) expect(sql, v).toContain(`migracion_${v}`);
     expect(sql).toContain("'staff_users.uuid'");
+    // todo el archivo es ASCII puro: sin acentos ni símbolos que una codificación distinta pueda romper
+    expect(/^[\x09\x0a\x0d\x20-\x7e]*$/.test(sql), 'caracteres no ASCII en el SQL').toBe(true);
   });
 
   it('todo literal del SQL es un identificador simple (los nombres solo pueden tener letras, dígitos y _ por cómo se leen): sin forma de inyectar', () => {
