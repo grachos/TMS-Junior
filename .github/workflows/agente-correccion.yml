@@ -66,6 +66,8 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.AGENTE_GITHUB_TOKEN }}
           branch_prefix: agente/
+          # TEMPORAL (diagnóstico): muestra el error real de Claude. El repo es público, así que estos logs también lo son; quitar al resolverlo.
+          show_full_output: true
           base_branch: main
           claude_args: >-
             --model claude-sonnet-5-5
