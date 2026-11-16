@@ -253,7 +253,7 @@ Módulo aparte `backend/src/modules/soporteIa/` (no está en el registro de herr
 6. **Proteger `main`**: exigir los checks `build` y `db-tests` y revisión antes de integrar.
 7. **Avisos por correo**: al crear el issue, la app te escribe a tu correo de propietario (SMTP de la app; GitHub no avisa al autor de su propio issue). Al terminar, un paso final del workflow comenta la conclusión del agente (y el enlace al PR si lo hay) en el issue con el token del workflow (bot), y GitHub te envía su correo habitual (requiere que sigas el repo o participes en el issue; revisa Settings → Notifications).
 8. El modelo del agente está **fijado** en el workflow (`--model claude-sonnet-5-5`) para que el comportamiento y el consumo de cupo no cambien sin que lo decidas. Si tu plan no lo incluye, la corrida falla; cámbialo por uno que sí. Se actualiza a mano.
-9. Primera prueba real hecha con un error falso: el agente respondió que no había nada que corregir y no abrió PR (costó ~0,04 USD).
+9. Prueba profunda hecha con un error real y pequeño (fixture ya eliminado): el agente encontró la causa, la corrigió con una prueba, abrió el PR (con su token, así que el CI corrió y pasó) y el bot comentó el resultado en el issue; el PR no se integró. Antes, con un error falso: el agente respondió que no había nada que corregir y no abrió PR (costó ~0,04 USD).
 10. Antes de la primera prueba real, revisa los permisos/`allowedTools` del workflow contra el README actual de la acción (no pude verificarlos desde aquí).
 
 ## Siguientes fases (en pruebas primero)
