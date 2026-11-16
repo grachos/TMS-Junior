@@ -1,0 +1,141 @@
+# Integración automática de los PR del agente (soporte, fase 5). APAGADA por defecto.
+#
+# Modo según la variable del repo AGENTE_INTEGRACION:
+#   (sin definir) / apagado → no corre nada;
+#   observar               → evalúa la política y COMENTA el veredicto (sin integrar);
+#   activo                 → si el PR es elegible, lo integra en main (merge) y lo comenta.
+#
+# SEGURIDAD
+#  - Corre con secretos, por eso NUNCA ejecuta código del PR: compila y ejecuta solo `main` y lee el PR únicamente por la API.
+#  - La política es .github/agente-politica.json de `main`; el agente no puede cambiarla desde un PR (.github/** no está permitido).
+#  - Datos controlados por el agente (rama, títulos, archivos) van por `env:` entre comillas, jamás dentro de `${{ }}` en un `run:`.
+#  - Solo integra en `main` (el sitio de pruebas); `produccion` solo se actualiza con tu "release" manual.
+#  - Que el PR quede en main NO significa que el sitio de pruebas ya lo tenga desplegado: el comentario lo dice.
+name: Integración del agente
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  checks: read
+
+concurrency:
+  group: agente-integracion
+  cancel-in-progress: false
+
+jobs:
+  decidir:
+    if: >-
+      vars.AGENTE_INTEGRACION != '' && vars.AGENTE_INTEGRACION != 'apagado' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'agente/incidente-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      REPO: ${{ github.repository }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      MODO: ${{ vars.AGENTE_INTEGRACION }}
+      PROPIETARIO: ${{ vars.AGENTE_PROPIETARIO }}
+      AUTOR_ISSUES: ${{ vars.AGENTE_AUTOR_ISSUES }}
+      TOKEN_AGENTE: ${{ secrets.AGENTE_GITHUB_TOKEN }}
+    steps:
+      - name: Verificar configuración
+        id: cfg
+        run: |
+          if [ -z "$TOKEN_AGENTE" ] || [ -z "$PROPIETARIO" ] || [ -z "$AUTOR_ISSUES" ]; then
+            echo "Falta AGENTE_GITHUB_TOKEN, AGENTE_PROPIETARIO o AGENTE_AUTOR_ISSUES: la integración está apagada."
+            echo "listo=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "listo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # SOLO main: nunca se hace checkout de la rama del PR.
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.listo == 'true'
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        if: steps.cfg.outputs.listo == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Compilar el evaluador (de main)
+        if: steps.cfg.outputs.listo == 'true'
+        run: |
+          npm ci
+          npx tsc -p backend/tsconfig.json
+
+      - name: Reunir datos del PR (solo API)
+        id: datos
+        if: steps.cfg.outputs.listo == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AGENTE_GITHUB_TOKEN }}
+          POLITICA: .github/agente-politica.json
+          OUT: ${{ runner.temp }}/entrada.json
+        run: bash backend/scripts/reunir-integracion.sh
+
+      - name: Evaluar la política
+        id: decision
+        if: steps.cfg.outputs.listo == 'true'
+        run: |
+          node backend/scripts/evaluar-integracion.mjs .github/agente-politica.json "${{ runner.temp }}/entrada.json" > "${{ runner.temp }}/decision.json"
+          echo "accion=$(jq -r '.accion' "${{ runner.temp }}/decision.json")" >> "$GITHUB_OUTPUT"
+          echo "pr=$(jq -r '.pr.numero' "${{ runner.temp }}/entrada.json")" >> "$GITHUB_OUTPUT"
+          echo "issue=$(jq -r '.issue.numero // empty' "${{ runner.temp }}/entrada.json")" >> "$GITHUB_OUTPUT"
+
+      # Veredicto (con el token del workflow: autor = bot, GitHub avisa al propietario).
+      - name: Comentar el veredicto
+        if: steps.cfg.outputs.listo == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACCION: ${{ steps.decision.outputs.accion }}
+          PR: ${{ steps.decision.outputs.pr }}
+        run: |
+          {
+            case "$ACCION" in
+              integrar) echo "**Integración automática** — el PR cumple la política y se integra en \`main\` (sitio de pruebas)." ;;
+              observar) echo "**Integración automática (modo observar)** — el PR cumple la política y **sería** integrado en \`main\`. No se integró: el modo es \"observar\"." ;;
+              *)        echo "**Integración automática** — este PR **no** se integra solo; queda para tu revisión. Motivos:" ; jq -r '.motivos[] | "- " + .' "${{ runner.temp }}/decision.json" ;;
+            esac
+            echo
+            echo "Política: \`.github/agente-politica.json\` (de \`main\`). Corrida: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > "${{ runner.temp }}/veredicto.md"
+          gh pr comment "$PR" --repo "$REPO" --body-file "${{ runner.temp }}/veredicto.md"
+
+      - name: Integrar en main
+        id: merge
+        if: steps.cfg.outputs.listo == 'true' && steps.decision.outputs.accion == 'integrar'
+        env:
+          GH_TOKEN: ${{ secrets.AGENTE_GITHUB_TOKEN }}
+          PR: ${{ steps.decision.outputs.pr }}
+        run: |
+          # --match-head-commit: si el PR cambió después de la evaluación, GitHub se niega a integrar.
+          gh pr merge "$PR" --repo "$REPO" --merge --match-head-commit "$HEAD_SHA"
+          echo "mergeado=true" >> "$GITHUB_OUTPUT"
+
+      - name: Avisar el resultado de la integración
+        if: always() && steps.cfg.outputs.listo == 'true' && steps.decision.outputs.accion == 'integrar'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.decision.outputs.pr }}
+          ISSUE: ${{ steps.decision.outputs.issue }}
+          MERGEADO: ${{ steps.merge.outputs.mergeado }}
+        run: |
+          if [ "$MERGEADO" = "true" ]; then
+            MSG="El PR #$PR se integró en \`main\`. **El despliegue al sitio de pruebas NO está verificado**: Hostinger lo despliega desde \`main\`, pero puede tardar o fallar (ya ha fallado antes); confírmalo en Soporte → versión. No se tocó el estado del incidente ni se avisó a ningún usuario. \`produccion\` no cambió."
+          else
+            MSG="No pude integrar el PR #$PR (GitHub lo rechazó, p. ej. porque cambió tras la evaluación o una regla de la rama lo exige). Queda para tu revisión."
+          fi
+          gh pr comment "$PR" --repo "$REPO" --body "$MSG"
+          [ -n "$ISSUE" ] && gh issue comment "$ISSUE" --repo "$REPO" --body "$MSG" || true
