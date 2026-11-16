@@ -238,4 +238,19 @@ describe.skipIf(!RUN)('issue de GitHub para el agente (fase 4)', () => {
     await new Promise((r) => setTimeout(r, 200));
     expect(correos).toHaveLength(0);
   });
+
+  it('sin repositorio configurado (o mal formado) no se ofrece crear issues y no se llama a GitHub: el nombre no está escrito en el código', async () => {
+    const id = await elegible('fallo lima');
+    const g = config().soporteGithub; const original = g.repo;
+    try {
+      for (const malo of ['', 'sin-barra', 'a/b/c', '../x', './x', 'x/..', 'x/.', '-x/y', 'dueno/repo/../otro', 'a b/c', 'http://evil.test/x', 'x/y?z=1']) {
+        g.repo = malo;
+        const det = (await (await llamar('dueno', 'GET', `/api/soporte/incidentes/${id}`)).json()) as { githubDisponible: boolean };
+        expect(det.githubDisponible, malo).toBe(false);
+        expect((await explic('dueno', id)).status, malo).toBe(409);
+      }
+      expect(llamadasGh).toHaveLength(0);
+    } finally { g.repo = original; }
+    expect((await explic('dueno', id)).status).toBe(200); // con el repositorio bien configurado sí funciona
+  });
 });
