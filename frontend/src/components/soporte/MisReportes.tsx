@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { fechaCorta } from '../../lib/fechaDb';
 import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { ExplicacionReporte, type VistaReporte } from './ExplicacionReporte';
@@ -84,7 +85,7 @@ export function MisReportes({ reportes, cargando, recargar }: { reportes: VistaR
                 </div>
                 <p className="mt-1 line-clamp-2 text-sm text-slate-700">{r.texto}</p>
                 <p className="mt-1 text-xs text-slate-400">
-                  #{r.id} · {new Date(r.creado.replace(' ', 'T')).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}
+                  #{r.id} · {fechaCorta(r.creado)}
                   {r.pantalla ? ` · ${r.pantalla}` : ''}
                 </p>
               </button>
