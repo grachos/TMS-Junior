@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "descripcion": "Política de integración automática de los PR del agente (fase 5). La lee SIEMPRE la versión de main: el agente no puede ampliar su propia autonomía desde un PR (.github/** no está permitido). Cualquier cosa fuera de 'permitidos', o dentro de 'prohibidos', deja el PR para revisión humana.",
+  "base": "main",
+  "prefijoRama": "agente/incidente-",
+  "maxArchivos": 4,
+  "maxLineas": 80,
+  "maxPorDia": 3,
+  "checksRequeridos": ["build", "db-tests", "GitGuardian Security Checks"],
+  "etiquetaIncidente": "incidente-soporte",
+  "etiquetaDisparador": "agente-corregir",
+  "permitidos": [
+    "backend/src/modules/catalogos/**/*.ts",
+    "backend/src/modules/impuestos/**/*.ts",
+    "backend/src/modules/informe/**/*.ts",
+    "backend/src/modules/municipios/**/*.ts",
+    "backend/src/modules/pdf/**/*.ts",
+    "backend/src/modules/stats/**/*.ts",
+    "backend/src/modules/terceros/**/*.ts",
+    "backend/src/modules/vehiculos/**/*.ts",
+    "backend/src/util/**/*.ts",
+    "frontend/src/pages/**/*.tsx",
+    "frontend/src/components/**/*.tsx",
+    "backend/test/**/*.ts"
+  ],
+  "prohibidos": [
+    "frontend/src/pages/soporte/**",
+    "frontend/src/pages/usuarios/**",
+    "frontend/src/components/soporte/**",
+    "frontend/src/components/ChatWidget.tsx",
+    "frontend/src/components/ErrorBoundary.tsx",
+    "frontend/src/components/OwnerGuard.tsx",
+    "**/.env*",
+    "**/*.sql",
+    "**/package.json",
+    "**/package-lock.json",
+    ".github/**",
+    "database/**"
+  ],
+  "archivosDePrueba": ["backend/test/**/*.ts"],
+  "patronesProhibidos": ["\\.skip\\(", "\\.only\\(", "skipIf", "\\.todo\\(", "child_process", "\\beval\\(", "new Function", "process\\.env"]
+}

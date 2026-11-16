@@ -256,7 +256,30 @@ Módulo aparte `backend/src/modules/soporteIa/` (no está en el registro de herr
 9. Prueba profunda hecha con un error real y pequeño (fixture ya eliminado): el agente encontró la causa, la corrigió con una prueba, abrió el PR (con su token, así que el CI corrió y pasó) y el bot comentó el resultado en el issue; el PR no se integró. Antes, con un error falso: el agente respondió que no había nada que corregir y no abrió PR (costó ~0,04 USD).
 10. Antes de la primera prueba real, revisa los permisos/`allowedTools` del workflow contra el README actual de la acción (no pude verificarlos desde aquí).
 
+## Fase 5 — integración automática de los PR del agente (solo `main` = sitio de pruebas)
+
+**Apagada por defecto.** Workflow `.github/workflows/agente-integracion.yml` + política `.github/agente-politica.json` + evaluador puro `backend/src/modules/agente/politicaIntegracion.ts` (probado regla por regla).
+
+Variable del repo **`AGENTE_INTEGRACION`**: sin definir o `apagado` → no corre nada · `observar` → evalúa y **comenta el veredicto sin integrar** · `activo` → integra los PR elegibles (merge a `main`). Empieza SIEMPRE en `observar`.
+
+**Un PR del agente se integra solo si cumple TODO** (si falla algo, o falta un dato, queda para ti y el bot comenta los motivos):
+- Viene de `agente/incidente-<n>` del mismo repo, hacia `main`, no es borrador, y lo abrió la cuenta del agente.
+- Su issue lo creó la app, tiene `incidente-soporte` y la etiqueta `agente-corregir` la puso el propietario (leído de los eventos del issue).
+- Cambia como máximo 4 archivos y 80 líneas; **todas** las rutas están en la lista permitida y ninguna en la prohibida. Hoy se permiten solo módulos de bajo riesgo (catálogos, impuestos, informe, municipios, pdf, stats, terceros, vehículos, util) y páginas/componentes del frontend (menos soporte, usuarios, chat, errores). **Nunca**: `.github/**` (la política misma), `database/**`, configuración, autenticación, RNDC, solicitudes, cola, empresa, usuarios, auditoría, el propio soporte, `package.json`/lockfiles.
+- **Solo se añaden pruebas**: debe añadir al menos una en `backend/test/`, y modificar, borrar o renombrar una existente lo descalifica (no se debilita una prueba para dar verde). Sin `.skip(`, `.only(`, `skipIf`, `process.env`, `child_process`, `eval(` en las líneas añadidas.
+- `build`, `db-tests` y GitGuardian en verde **sobre el mismo commit** que se integra; `--match-head-commit` evita integrar algo distinto de lo evaluado.
+- Máximo 3 integraciones del agente cada 24 h.
+
+**Qué NO hace**: no toca `produccion` (el release es tuyo), no cambia el estado del incidente en la app, no avisa a ningún usuario, y **no verifica el despliegue**: el comentario dice que el PR quedó en `main` y que el despliegue de Hostinger no está confirmado (ya ha fallado al clonar). Tampoco revierte solo.
+
+**Seguridad del propio workflow**: corre con secretos, así que solo compila y ejecuta `main` y lee el PR por la API; los datos que elige el agente (rama, archivos) nunca se interpolan en comandos; y el agente solo puede publicar con `git push origin agente/incidente-<n>` (rama exacta) y `gh pr create --base main --head agente/incidente-<n>`, de modo que no tiene forma de empujar a `main`.
+
+**Antes de activarlo** (lo confirmas tú):
+1. Que `main` esté protegido (ruleset con los checks `build` y `db-tests` obligatorios) y que **tu cuenta NO esté en la lista de bypass**: el token del agente es de tu cuenta; con bypass podría saltarse la protección.
+2. Variable `AGENTE_INTEGRACION=observar`, y espera a ver el veredicto de un PR real del agente (cuesta otra prueba del agente) antes de pasar a `activo`.
+3. Limitación conocida: la cuenta del agente y la del propietario son la misma; una cuenta aparte (bot) con permisos mínimos sería más estricto.
+
 ## Siguientes fases (en pruebas primero)
 
-5. Integración automática al sitio de pruebas.
+Pendiente: llevar todo a producción (con tu "release" explícito), aplicando antes las migraciones v54–v61 y las variables en ese sitio.
 El chat actual de datos **no** tiene herramientas técnicas: cuando las haya, vivirán solo en el contexto del propietario.
