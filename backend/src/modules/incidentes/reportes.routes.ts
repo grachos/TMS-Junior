@@ -14,7 +14,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { AppError, asyncHandler, badRequest, notFound } from '../../http/errors.js';
 import { diagnosticarEnSegundoPlano } from '../diagnostico/servicio.js';
-import { avisarPropietario } from './notificar.js';
+import { config } from '../../config/env.js';
+import { avisarPropietario, avisarPropietarioPorCorreo } from './notificar.js';
 import {
   crearReporte, incidentePorRequestId, registrarOcurrencia, reportesRecientesDe, telemetriaRecienteDe, vistaErrorConocido, vistaMiReporte, vistaMisReportes,
 } from './incidentes.repo.js';
@@ -62,6 +63,16 @@ reportesRouter.post(
     }
     const id = await crearReporte({ incidenteId, usuarioId, texto: limpio, pantalla: pantallaLimpia, requestId: requestId ?? null });
     void avisarPropietario({ title: nuevo ? 'Nuevo incidente reportado' : 'Nuevo reporte de usuario', body: pantallaLimpia ?? 'Aplicación', url: '/soporte', tag: `incidente-${incidenteId}` });
+    // Correo al propietario con el detalle de lo reportado (solo a su cuenta; el texto ya está sanitizado). Informativo: no afecta la respuesta.
+    const raiz = config().correo.appUrl;
+    void avisarPropietarioPorCorreo(`[Konekto soporte] ${nuevo ? 'Nuevo incidente reportado' : 'Nuevo reporte'}: ${pantallaLimpia ?? 'la aplicación'}`, [
+      `${req.user!.nombre} (${req.user!.email}) reportó un problema${nuevo ? ' y se creó el incidente' : ' en un incidente existente'} ${incidenteId}.`,
+      `Pantalla: ${pantallaLimpia ?? 'no indicada'}`,
+      `Detalle: ${limpio}`,
+      ...(requestId ? [`Código técnico: ${requestId}`] : []),
+      `Sitio: ${sitioId()} · versión ${versionDespliegue().slice(0, 12)}`,
+      ...(raiz ? [`Abrir en soporte: ${raiz}/soporte`] : []),
+    ]);
     const vista = await vistaMiReporte(usuarioId, id);
     res.status(201).json(vista);
   }),

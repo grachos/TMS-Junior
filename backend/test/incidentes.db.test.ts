@@ -22,6 +22,8 @@ vi.mock('../src/modules/impuestos/impuestos.repo.js', async (orig) => {
   const real = await orig<typeof import('../src/modules/impuestos/impuestos.repo.js')>();
   return { ...real, listar: async (f: Parameters<typeof real.listar>[0]) => { if (falloListar) throw falloListar; return real.listar(f); } };
 });
+const correosEnviados: { para: string; asunto: string; texto: string; html: string }[] = [];
+vi.mock('../src/modules/auth/correo.js', () => ({ enviarCorreo: async (c: { para: string; asunto: string; texto: string; html: string }) => { correosEnviados.push(c); return true; } }));
 const pushes: { ids: number[]; payload: { title: string; body: string } }[] = [];
 vi.mock('../src/modules/push/push.repo.js', async (orig) => {
   const real = await orig<typeof import('../src/modules/push/push.repo.js')>();
@@ -107,7 +109,7 @@ describe.skipIf(!RUN)('incidentes y reportes (fase 2a)', () => {
     await crear('opera2', 'operador');
     for (const n of ['opera3', 'opera4', 'opera5', 'opera6', 'opera7']) await crear(n, 'operador');
   });
-  beforeEach(() => { pushes.length = 0; reiniciarInterruptor(); });
+  beforeEach(() => { pushes.length = 0; correosEnviados.length = 0; reiniciarInterruptor(); });
 
   afterAll(async () => {
     await limpiarTodo();
@@ -422,5 +424,25 @@ describe.skipIf(!RUN)('incidentes y reportes (fase 2a)', () => {
     expect(await (await llamar('admin1', 'GET', `/api/reportes/error/req-${azar(6)}`)).json()).toEqual({ conocido: false });
     expect(await (await llamar('admin1', 'GET', `/api/reportes/error/${encodeURIComponent("x' OR 1=1 --")}`)).json()).toEqual({ conocido: false });
     expect((await llamar(null, 'GET', `/api/reportes/error/${rid}`)).status).toBe(401);
+  });
+
+  it('un reporte de usuario manda al propietario un correo con el detalle (sanitizado) y SOLO a él; sin propietario no se manda nada', async () => {
+    const secreto = azar(10); const texto = `no me deja guardar password=${secreto} en la pantalla ${azar(3)}`;
+    const rid = `req-${azar(6)}`;
+    await reportar('opera2', { texto, pantalla: '/solicitudes', requestId: rid });
+    for (let k = 0; k < 20 && correosEnviados.length === 0; k++) await espera(50);
+    expect(correosEnviados).toHaveLength(1);
+    const c = correosEnviados[0]!;
+    expect(c.para).toBe(correo('dueno'));
+    expect(c.texto).toContain('no me deja guardar');
+    expect(c.texto).toContain('/solicitudes');
+    expect(c.texto).toContain(correo('opera2')); // quién lo reportó (solo lo ve el propietario)
+    expect(c.texto).toContain(rid);
+    expect(`${c.asunto}\n${c.texto}\n${c.html}`).not.toContain(secreto); // el texto del usuario ya viene sanitizado
+    // Sin propietario vinculado: ningún correo (ni a otro administrador).
+    correosEnviados.length = 0;
+    const previo = process.env.PLATFORM_OWNER_UUID; delete process.env.PLATFORM_OWNER_UUID;
+    try { await reportar('opera2', { texto: `otro reporte ${azar(3)}`, pantalla: '/productos' }); await espera(300); } finally { process.env.PLATFORM_OWNER_UUID = previo; }
+    expect(correosEnviados).toHaveLength(0);
   });
 });
