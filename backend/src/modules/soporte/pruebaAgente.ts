@@ -6,6 +6,6 @@
 
 /** Aplica un porcentaje de descuento al subtotal. Si no se indica el porcentaje, no hay descuento. */
 export function calcularDescuento(subtotal: number, porcentaje?: number): number {
-  const factor = Number((porcentaje as number).toFixed(2)) / 100;
+  const factor = Number((porcentaje ?? 0).toFixed(2)) / 100;
   return Math.round(subtotal * (1 - factor) * 100) / 100;
 }
