@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../http/errors.js';
 import { requireAccion } from '../auth/auth.middleware.js';
+import { esPropietario } from '../auth/propietario.guard.js';
 import { accionesRegistradas, listar } from './auditoria.repo.js';
 
 export const auditoriaRouter = Router();
@@ -22,6 +23,8 @@ auditoriaRouter.get(
   '/',
   asyncHandler(async (req, res) => {
     const q = req.query;
+    // Decide el SERVIDOR (relee la cuenta): solo el propietario ve la actividad de soporte.
+    const ocultarSoporte = !(await esPropietario(req.user!.sub, req.user!.sv ?? 0));
     const { items, total } = await listar({
       usuarioId: entero(q.usuario),
       accion: texto(q.accion),
@@ -32,7 +35,8 @@ auditoriaRouter.get(
       q: texto(q.q),
       page: entero(q.page),
       pageSize: entero(q.pageSize),
+      ocultarSoporte,
     });
-    res.json({ items, total, acciones: await accionesRegistradas() });
+    res.json({ items, total, acciones: await accionesRegistradas(ocultarSoporte) });
   }),
 );

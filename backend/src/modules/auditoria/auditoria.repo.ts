@@ -104,9 +104,12 @@ export interface FiltrosAuditoria {
   pageSize?: number;
 }
 
+/** Lo que hace el propietario en soporte (incidentes, su perfil/sesiones) lo ve SOLO él: la pantalla Actividad lo oculta a los demás. */
+const SOLO_PROPIETARIO = "accion NOT LIKE 'incidente.%' AND accion NOT LIKE 'propietario.%' AND entidad NOT IN ('incidente', 'incidentes')";
+
 /** Paginated, filterable listing for the activity viewer (newest first). */
-export async function listar(f: FiltrosAuditoria): Promise<{ items: RowDataPacket[]; total: number }> {
-  const where: string[] = [];
+export async function listar(f: FiltrosAuditoria & { ocultarSoporte?: boolean }): Promise<{ items: RowDataPacket[]; total: number }> {
+  const where: string[] = f.ocultarSoporte ? [SOLO_PROPIETARIO] : [];
   const params: unknown[] = [];
   if (f.usuarioId) { where.push('usuario_id = ?'); params.push(f.usuarioId); }
   if (f.accion) { where.push('accion = ?'); params.push(f.accion); }
@@ -128,7 +131,7 @@ export async function listar(f: FiltrosAuditoria): Promise<{ items: RowDataPacke
 }
 
 /** Distinct actions recorded so far (for the viewer's filter). */
-export async function accionesRegistradas(): Promise<string[]> {
-  const [rows] = await db().query<RowDataPacket[]>('SELECT DISTINCT accion FROM auditoria ORDER BY accion');
+export async function accionesRegistradas(ocultarSoporte = false): Promise<string[]> {
+  const [rows] = await db().query<RowDataPacket[]>(`SELECT DISTINCT accion FROM auditoria ${ocultarSoporte ? `WHERE ${SOLO_PROPIETARIO}` : ''} ORDER BY accion`);
   return rows.map((r) => String(r.accion));
 }
