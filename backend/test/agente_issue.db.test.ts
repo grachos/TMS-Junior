@@ -36,6 +36,8 @@ globalThis.fetch = (async (url: unknown, init?: RequestInit) => {
   if (String(url).startsWith('http://openrouter.test')) { llamadasIA += 1; return new Response('{}', { status: 502 }); }
   return fetchReal(url as string, init);
 }) as typeof fetch;
+const correos: { para: string; asunto: string; texto: string; html: string }[] = [];
+vi.mock('../src/modules/auth/correo.js', () => ({ enviarCorreo: async (c: { para: string; asunto: string; texto: string; html: string }) => { correos.push(c); return true; } }));
 const pushes: { ids: number[] }[] = [];
 vi.mock('../src/modules/push/push.repo.js', async (orig) => {
   const real = await orig<typeof import('../src/modules/push/push.repo.js')>();
@@ -108,7 +110,7 @@ describe.skipIf(!RUN)('issue de GitHub para el agente (fase 4)', () => {
     await crear('admin', 'admin');
     await crear('opera', 'operador');
   });
-  beforeEach(() => { pushes.length = 0; llamadasGh.length = 0; reiniciarInterruptor(); reiniciarInterruptorDiagnostico(); config().soporteGithub.habilitado = true; config().soporteGithub.repoPrivado = false; ghRespuesta = async () => new Response(JSON.stringify({ number: 4000 + llamadasGh.length, html_url: `https://github.com/org/repo/issues/${4000 + llamadasGh.length}` }), { status: 201 }); });
+  beforeEach(() => { pushes.length = 0; correos.length = 0; llamadasGh.length = 0; reiniciarInterruptor(); reiniciarInterruptorDiagnostico(); config().soporteGithub.habilitado = true; config().soporteGithub.repoPrivado = false; ghRespuesta = async () => new Response(JSON.stringify({ number: 4000 + llamadasGh.length, html_url: `https://github.com/org/repo/issues/${4000 + llamadasGh.length}` }), { status: 201 }); });
   afterAll(async () => {
     globalThis.fetch = fetchReal;
     await limpiarTodo();
@@ -214,5 +216,26 @@ describe.skipIf(!RUN)('issue de GitHub para el agente (fase 4)', () => {
     expect(d.githubDisponible).toBe(true);
     expect(d.elegibilidadAgente.elegible).toBe(true);
     expect(t).not.toContain(String(process.env.GITHUB_ISSUES_TOKEN));
+  });
+
+  it('al crear el issue se avisa por correo SOLO al propietario (a su email de la base), sin evidencia ni secretos; un fallo del correo no cambia la respuesta', async () => {
+    const clave = azar(20);
+    const id = await incidente({ tipo: 'codigo', mensaje: `falló password=${clave} aviso correo` });
+    await diagnosticarIncidente(id, null);
+    expect((await explic('dueno', id)).status).toBe(200);
+    for (let k = 0; k < 20 && correos.length === 0; k++) await new Promise((r) => setTimeout(r, 50));
+    expect(correos).toHaveLength(1);
+    const c = correos[0]!;
+    expect(c.para).toBe(`ag.dueno.${sufijo}@test.local`);
+    expect(c.asunto).toContain(String(id));
+    expect(c.texto).toMatch(/https:\/\/github\.com\/org\/repo\/issues\/\d+/);
+    expect(c.texto).toContain('agente-corregir');
+    expect(`${c.asunto}\n${c.texto}\n${c.html}`).not.toContain(clave);
+    expect(correos.every((x) => x.para === c.para)).toBe(true);
+    // Un issue que NO se crea (no elegible) no manda correo.
+    correos.length = 0;
+    expect((await explic('dueno', id)).status).toBe(409);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(correos).toHaveLength(0);
   });
 });
