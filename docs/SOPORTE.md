@@ -245,7 +245,7 @@ Módulo aparte `backend/src/modules/soporteIa/` (no está en el registro de herr
 
 ### Lista de configuración (la haces tú; nada de esto lo hace el agente)
 
-1. **Token de la app** (GitHub → Settings → Developer settings → fine-grained token): repositorio = solo este, permiso **Issues: Read and write**. Variables en hPanel del sitio de pruebas: `GITHUB_ISSUES_HABILITADO=true`, `GITHUB_ISSUES_TOKEN=<token>` (opcional `GITHUB_ISSUES_REPO`, `GITHUB_REPO_PRIVADO`).
+1. **Token de la app** (GitHub → Settings → Developer settings → fine-grained token): repositorio = solo este, permiso **Issues: Read and write**. Variables en hPanel del sitio de pruebas: `GITHUB_ISSUES_HABILITADO=true`, `GITHUB_ISSUES_TOKEN=<token>` y **`GITHUB_ISSUES_REPO=<dueño>/<repositorio>`** (obligatoria: el nombre del repositorio ya no está escrito en el código, y sin ella —o si no tiene el formato `dueño/nombre`— no se ofrece crear issues); opcional `GITHUB_REPO_PRIVADO`.
 2. **Etiquetas** en el repo: `incidente-soporte` y `agente-corregir`.
 3. **Variables del repo** (Settings → Secrets and variables → Actions → Variables): `AGENTE_PROPIETARIO` = tu usuario de GitHub; `AGENTE_AUTOR_ISSUES` = el usuario dueño del token del paso 1.
 4. **Secretos del repo**: `ANTHROPIC_API_KEY` (clave de API de console.anthropic.com, de pago por uso: ponle un límite de gasto mensual) y `AGENTE_GITHUB_TOKEN` (token de grano fino o GitHub App con Contents y Pull requests: write). Se probó con el token OAuth de la suscripción (`claude setup-token`) y GitHub lo rechazó con 401 "Not logged in"; por eso se usa la clave de API. Hace falta un token propio porque **los PR abiertos con el `GITHUB_TOKEN` por defecto no disparan el CI** (build/db-tests no correrían sobre el PR del agente).

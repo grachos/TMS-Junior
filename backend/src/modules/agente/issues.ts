@@ -17,7 +17,9 @@ export class IssueError extends Error {
   constructor(readonly codigo: 'deshabilitado' | 'no_elegible' | 'en_curso' | 'proveedor', mensaje: string) { super(mensaje); }
 }
 
-export const githubDisponible = (): boolean => { const g = config().soporteGithub; return Boolean(g.habilitado && g.token); };
+/** Habilitado, con token y con un repositorio bien formado (`dueño/nombre`): sin repositorio configurado no se ofrece crear issues. */
+export const REPO_VALIDO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/(?!\.{1,2}$)[A-Za-z0-9_.-]{1,100}$/;
+export const githubDisponible = (): boolean => { const g = config().soporteGithub; return Boolean(g.habilitado && g.token && REPO_VALIDO.test(g.repo)); };
 
 export async function elegibilidadDe(incidenteId: number): Promise<Veredicto | null> {
   const [[i]] = await db().query<RowDataPacket[]>('SELECT corregible, tipo, issue_numero FROM incidentes WHERE id = ?', [incidenteId]);
