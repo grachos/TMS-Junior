@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { fechaCorta } from '../../lib/fechaDb';
 
 export interface VistaReporte {
   id: number;
@@ -46,7 +47,7 @@ export function ExplicacionReporte({ v, extra }: { v: VistaReporte; extra?: Reac
             {v.mensajes.map((m, i) => (
               <li key={i} className="rounded-lg border border-slate-200 bg-surface px-2.5 py-1.5 text-sm text-slate-700">
                 {m.texto}
-                <span className="ml-2 text-xs text-slate-400">{new Date(m.fecha.replace(' ', 'T')).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                <span className="ml-2 text-xs text-slate-400">{fechaCorta(m.fecha)}</span>
               </li>
             ))}
           </ul>

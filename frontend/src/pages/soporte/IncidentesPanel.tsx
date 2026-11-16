@@ -3,6 +3,7 @@ import { AlertTriangle, ChevronDown, ChevronRight, Loader2, RefreshCw, Search, S
 import { api, ApiError } from '../../lib/api';
 import { Alert } from '../../components/Alert';
 import { useEnvioUnico } from '../../lib/useEnvioUnico';
+import { fechaCorta } from '../../lib/fechaDb';
 
 /** Consola de incidentes (solo propietario). Cada llamada la valida el servidor: aquí solo se presenta. */
 
@@ -38,7 +39,7 @@ interface Diagnostico {
 }
 const COLOR_CONF: Record<string, string> = { confirmada: 'bg-emerald-100 text-emerald-800', probable: 'bg-amber-100 text-amber-800', insuficiente: 'bg-slate-100 text-slate-600' };
 
-const fecha = (v: string) => new Date(String(v).replace(' ', 'T')).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
+const fecha = (v: string) => fechaCorta(v);
 
 export function IncidentesPanel() {
   const [items, setItems] = useState<Fila[]>([]);

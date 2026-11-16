@@ -208,6 +208,22 @@ describe.skipIf(!RUN)('diagnóstico por reglas (fase 3b)', () => {
     expect(d.causaConfirmada).toBeNull();
   });
 
+  it('un error del NAVEGADOR (telemetría) también se diagnostica solo, y una repetición no duplica el diagnóstico', async () => {
+    const msg = `PRUEBA navegador ${azar(3).replace(/\d/g, 'z')}`;
+    const enviar = () => llamar('opera', 'POST', '/api/reportes/telemetria', { tipo: 'error_js', mensaje: msg, ruta: '/pagina', pila: 'Error: x\n    at f (https://sitio.test/assets/index-abc.js:1:1)' });
+    expect((await enviar()).status).toBe(204);
+    let inc: RowDataPacket | undefined;
+    for (let k = 0; k < 40 && !inc; k++) {
+      const [r] = await db().query<RowDataPacket[]>("SELECT i.id, i.estado FROM incidentes i JOIN incidente_diagnosticos d ON d.incidente_id = i.id WHERE i.sitio = ? AND i.titulo LIKE ? LIMIT 1", [SITIO, `%${msg}%`]);
+      inc = r[0]; if (!inc) await espera(100);
+    }
+    expect(inc, 'el diagnóstico automático no corrió para el error del navegador').toBeDefined();
+    expect((await fila(inc!.id)).estado).toBe('en_diagnostico');
+    expect((await enviar()).status).toBe(204);
+    await espera(400);
+    expect(await diagnosticos(inc!.id)).toHaveLength(1);
+  });
+
   it('automático: un incidente NUEVO se diagnostica solo; una repetición no; una REAPERTURA sí; nunca pisa un estado que el propietario ya movió', async () => {
     falloListar = new Error(`falla diagnosticable ${azar(3).replace(/\d/g, 'z')}`);
     try { await llamar('admin', 'GET', '/api/impuestos/ica'); } finally { falloListar = null; }

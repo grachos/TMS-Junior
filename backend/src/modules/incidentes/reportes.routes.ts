@@ -92,11 +92,12 @@ reportesRouter.post(
     const ruta = normalizarRuta(t.ruta ?? '');
     const mensaje = sanitizarTexto(t.mensaje, 300);
     const operacion = `navegador ${ruta}`;
-    await registrarOcurrencia({
+    const r = await registrarOcurrencia({
       sitio, huella: huella({ sitio, tipo: 'codigo', operacion, codigo: t.tipo, mensaje }), tipo: 'codigo', origen: 'navegador', severidad: 'media', corregible: true,
       titulo: `${operacion}: ${mensaje || t.tipo}`.slice(0, 200), operacion, codigo: t.tipo, version: versionDespliegue(),
       evidencia: { tipo: 'cliente', contenido: JSON.stringify({ tipo: t.tipo, ruta, mensaje, pila: t.pila ? sanitizarPila(t.pila) : '' }), usuarioId, requestId: t.requestId ?? null },
     });
+    if (r.nuevo || r.reabierto) void diagnosticarEnSegundoPlano(r.id);
     res.status(204).end();
   }),
 );
