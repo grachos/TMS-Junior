@@ -12,7 +12,6 @@ import { existsSync } from 'node:fs';
 import express from 'express';
 import cors from 'cors';
 import { config } from './config/env.js';
-import { formatearKilos } from './util/kilosPrueba.js';
 import { asyncHandler, errorMiddleware, notFound } from './http/errors.js';
 import { dbDisponible } from './db/pool.js';
 import { authRouter } from './modules/auth/auth.routes.js';
@@ -96,13 +95,6 @@ export function createApp() {
   // All business modules require a valid staff JWT. Individual routes add
   // requireRole('admin') where real RNDC sending happens.
   const api = express.Router();
-  // TEMPORAL (prueba del flujo de soporte en producción): inerte salvo PRUEBA_KILOS_HABILITADA=true. PÚBLICA (antes de requireAuth) para poder abrirla desde el navegador. Sin ?valor= falla a propósito (defecto de formatearKilos).
-  if (config().pruebaKilosHabilitada) {
-    api.get('/prueba-kilos', asyncHandler(async (req, res) => {
-      const valor = typeof req.query.valor === 'string' && req.query.valor !== '' ? Number(req.query.valor) : undefined;
-      res.json({ texto: formatearKilos(valor) });
-    }));
-  }
   api.use(requireAuth);
   api.get(
     '/estado',
