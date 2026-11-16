@@ -9,6 +9,7 @@ import type { RowDataPacket } from 'mysql2';
 import { db } from '../../db/pool.js';
 import { enviarAUsuarios, type PushPayload } from '../push/push.repo.js';
 import { vinculoPropietario } from '../auth/propietario.js';
+import { enviarCorreo } from '../auth/correo.js';
 
 /** id de la cuenta del propietario, o null si no está configurado/vinculado (entonces no se avisa a nadie). */
 export async function idPropietario(): Promise<number | null> {
@@ -36,5 +37,27 @@ export async function avisarUsuarios(ids: number[], payload: PushPayload): Promi
     await enviarAUsuarios(ids, payload);
   } catch {
     /* idem */
+  }
+}
+
+const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/**
+ * Correo SOLO a la cuenta del propietario (su email se lee de la base por su uuid; nunca de un parámetro). Informativo: si el SMTP
+ * no está configurado o falla, no se rompe nada. El texto lo arma quien llama con datos ya sanitizados (sin evidencia ni secretos).
+ */
+export async function avisarPropietarioPorCorreo(asunto: string, lineas: string[]): Promise<void> {
+  try {
+    const id = await idPropietario();
+    if (id === null) return;
+    const [rows] = await db().query<RowDataPacket[]>('SELECT email FROM staff_users WHERE id = ? LIMIT 1', [id]);
+    const para = rows[0] ? String(rows[0].email ?? '') : '';
+    if (!para) return;
+    await enviarCorreo({
+      para, asunto: asunto.slice(0, 150), texto: lineas.join('\n'),
+      html: `<div style="font-family:Arial,sans-serif;font-size:14px;color:#1f2937">${lineas.map((l) => `<p>${esc(l)}</p>`).join('')}</div>`,
+    });
+  } catch {
+    /* un aviso no debe romper nada */
   }
 }

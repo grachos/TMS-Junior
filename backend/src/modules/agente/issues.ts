@@ -9,7 +9,8 @@ import type { RowDataPacket } from 'mysql2';
 import { config } from '../../config/env.js';
 import { db } from '../../db/pool.js';
 import { evento } from '../incidentes/incidentes.repo.js';
-import { cuerpoIssue, ETIQUETA_INCIDENTE, tituloIssue } from './cuerpoIssue.js';
+import { avisarPropietarioPorCorreo } from '../incidentes/notificar.js';
+import { cuerpoIssue, ETIQUETA_INCIDENTE, neutralizar, tituloIssue } from './cuerpoIssue.js';
 import { evaluarElegibilidad, type Veredicto } from './politica.js';
 
 export class IssueError extends Error {
@@ -68,6 +69,12 @@ export async function crearIssueDeIncidente(incidenteId: number, actorId: number
     }
     await db().query('UPDATE incidentes SET issue_numero = ?, issue_url = ? WHERE id = ?', [numero, url.slice(0, 255), incidenteId]);
     await evento(incidenteId, 'issue_creado', `Issue ${numero} creado en GitHub`, actorId);
+    // Aviso al propietario por correo (GitHub no avisa al autor de su propio issue). Sin evidencia: solo título, enlace y el siguiente paso.
+    void avisarPropietarioPorCorreo(`[Konekto soporte] Issue ${numero} creado para el incidente ${incidenteId}`, [
+      `Se creó el issue ${numero} en GitHub para el incidente ${incidenteId}: ${neutralizar(i.titulo, 120)}`,
+      url,
+      'El agente no actúa solo: para que proponga una corrección, ponle la etiqueta agente-corregir en GitHub.',
+    ]);
     return { numero, url };
   } catch (e) {
     // Si no se creó, se libera la reserva para poder reintentar. Si ya se creó (numero guardado) no se toca.

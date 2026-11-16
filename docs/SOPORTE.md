@@ -251,8 +251,10 @@ Módulo aparte `backend/src/modules/soporteIa/` (no está en el registro de herr
 4. **Secretos del repo**: `ANTHROPIC_API_KEY` (clave de API de console.anthropic.com, de pago por uso: ponle un límite de gasto mensual) y `AGENTE_GITHUB_TOKEN` (token de grano fino o GitHub App con Contents y Pull requests: write). Se probó con el token OAuth de la suscripción (`claude setup-token`) y GitHub lo rechazó con 401 "Not logged in"; por eso se usa la clave de API. Hace falta un token propio porque **los PR abiertos con el `GITHUB_TOKEN` por defecto no disparan el CI** (build/db-tests no correrían sobre el PR del agente).
 5. **Acción fijada a un SHA** (`f3b070c…` = etiqueta v1): ya hecho; para actualizarla, ver el comentario del workflow.
 6. **Proteger `main`**: exigir los checks `build` y `db-tests` y revisión antes de integrar.
-7. El modelo del agente está **fijado** en el workflow (`--model claude-sonnet-5-5`) para que el comportamiento y el consumo de cupo no cambien sin que lo decidas. Si tu plan no lo incluye, la corrida falla; cámbialo por uno que sí. Se actualiza a mano.
-8. Antes de la primera prueba real, revisa los permisos/`allowedTools` del workflow contra el README actual de la acción (no pude verificarlos desde aquí).
+7. **Avisos por correo**: al crear el issue, la app te escribe a tu correo de propietario (SMTP de la app; GitHub no avisa al autor de su propio issue). Al terminar, el agente comenta su conclusión en el issue con el token del workflow (bot), y GitHub te envía su correo habitual (requiere que sigas el repo o participes en el issue; revisa Settings → Notifications).
+8. El modelo del agente está **fijado** en el workflow (`--model claude-sonnet-5-5`) para que el comportamiento y el consumo de cupo no cambien sin que lo decidas. Si tu plan no lo incluye, la corrida falla; cámbialo por uno que sí. Se actualiza a mano.
+9. Primera prueba real hecha con un error falso: el agente respondió que no había nada que corregir y no abrió PR (costó ~0,04 USD).
+10. Antes de la primera prueba real, revisa los permisos/`allowedTools` del workflow contra el README actual de la acción (no pude verificarlos desde aquí).
 
 ## Siguientes fases (en pruebas primero)
 
