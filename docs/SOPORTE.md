@@ -283,5 +283,3 @@ Variable del repo **`AGENTE_INTEGRACION`**: sin definir o `apagado` → no corre
 
 Pendiente: llevar todo a producción (con tu "release" explícito), aplicando antes las migraciones v54–v61 y las variables en ese sitio.
 El chat actual de datos **no** tiene herramientas técnicas: cuando las haya, vivirán solo en el contexto del propietario.
-
-<!-- prueba de ruleset: este comentario no afecta nada y puede borrarse -->
