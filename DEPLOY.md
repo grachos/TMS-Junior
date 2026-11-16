@@ -5,49 +5,95 @@
 > un **frontend React (SPA) compilado a archivos estáticos** — ya no es un LAMP
 > puro, así que el despliegue tiene una pieza nueva: la app Node.
 
-Repo: <https://github.com/grachos/TMS-TechCol> (rama `main`).
+Repositorio de GitHub: rama `main` (pruebas) y una rama por sitio de producción (ver abajo).
 
 ---
 
 ## Sitios y ramas: prueba primero, producción después
 
 Un mismo repositorio alimenta **varios sitios**, cada uno con **su propia base de
-datos** y sus propias variables de entorno:
+datos**, sus propias variables de entorno y **su propia rama**:
 
 | Sitio | Papel | Despliega desde | Base de datos |
 |---|---|---|---|
-| `tmslight.techcol-service.cc` | **Prueba** | rama `main` (cada PR fusionado) | `u279856486_tms_light_new` |
-| `trading-solucion.konekto.site` | **Producción** | rama `produccion` | `u279856486_trading` |
-| *(futuros sitios de producción)* | Producción | rama `produccion` | una base nueva por sitio |
+| `tmslight.techcol-service.cc` | **Prueba** | rama `main` (cada PR integrado) | `u279856486_tms_light_new` |
+| `trading-solucion.konekto.site` | **Producción** (primer sitio) | rama `produccion` | `u279856486_trading` |
+| *(cada nuevo cliente)* | Producción | rama `prod-<id>` (p. ej. `prod-02`) | una base nueva por sitio |
+
+**Por qué una rama por sitio (y no una sola `produccion` para todos):** así cada cliente
+se libera por separado, cuando su base ya tiene las migraciones; se puede probar un
+release primero en un sitio y luego en los demás; y un fallo en un sitio se revierte sin
+tocar a los otros. Con una rama compartida, un release despliega a **todos a la vez**.
+
+> **Nombres neutros.** El repositorio es público y los nombres de rama también lo son:
+> usa `prod-01`, `prod-02`… y guarda la equivalencia con el cliente **fuera del
+> repositorio** (tus notas). No pongas nombres de clientes en ramas, commits ni docs.
 
 **Flujo de una versión:**
 
-1. Se fusiona el PR a `main` → solo el sitio de **prueba** se despliega.
+1. Se integra el PR en `main` → solo el sitio de **prueba** se despliega.
 2. Si la versión trae migraciones nuevas, se corren primero en la base de **prueba**.
 3. Se revisa el cambio en el sitio de prueba.
-4. **Liberar:** se adelanta `produccion` al mismo commit ya probado
-   (`git push origin <commit>:produccion`, siempre avance rápido, nunca código
-   que no pasó por prueba) → todos los sitios de producción se despliegan.
-5. Las mismas migraciones se corren en **cada** base de producción.
+4. **Liberar a un sitio** (siempre primero la simulación; luego `--confirmar`):
+
+   ```bash
+   node scripts/release.mjs prod-02                 # simula: muestra commits y migraciones nuevas
+   node scripts/release.mjs prod-02 --confirmar     # adelanta la rama de ese sitio
+   node scripts/release.mjs todos --confirmar       # todos los sitios (solo cuando ya probaste en uno)
+   ```
+
+   `scripts/release.mjs` solo empuja a ramas `produccion` / `prod-<id>`, solo commits
+   que ya están en `main`, solo como **avance directo** (nunca reescribe historia; no
+   existe `--force`), y avisa de las **migraciones del rango**, que deben estar
+   aplicadas en la base de **ese** sitio **antes** de liberar. Si se indica
+   `--sha=<commit>`, libera ese commit de `main` en vez de la punta.
+5. Las mismas migraciones se corren en **cada** base de producción antes de liberar a su sitio.
+6. Verifica el despliegue del sitio (hPanel → Despliegues, o el log
+   `[soporte] Propietario vinculado…`) y entra a probarlo.
 
 **Sitio de prueba:** `RNDC_AMBIENTE=pruebas`, para que nada de lo que se haga
-ahí se radique ante el Ministerio.
+ahí se radique ante el Ministerio. **Usa credenciales distintas a las de
+producción** (SMTP, claves de API, `JWT_SECRET`, token de GitHub): las vistas
+previas de Hostinger compilan ramas con las variables del sitio de prueba, y lo
+que ahí se filtre no debe servir en producción.
+
+**Proteger las ramas de producción** (GitHub → Settings → Rules → Rulesets → New
+branch ruleset; nombre `proteger-produccion`, estado **Active**, **sin lista de bypass**):
+
+- *Target branches*: *Add target → Include by pattern* → `produccion` y `prod-*`.
+- Reglas: **Restrict deletions**, **Block force pushes** y **Require status checks to
+  pass** con `build` y `db-tests` (elígelos del selector; no hace falta GitGuardian).
+- **No** actives "Require a pull request": liberar es un avance directo, y la regla de
+  checks lo permite porque el commit ya pasó `build` y `db-tests` en `main`; en cambio
+  bloquea empujar código que no pasó por ahí.
+- Comprueba la regla con una rama de prueba (`prod-prueba`) **antes** del primer release:
+  un avance directo de un commit de `main` debe entrar; un commit nuevo sin checks, un
+  push forzado y borrar la rama deben ser rechazados.
+
+**Volver atrás (rollback).** Como no se permite reescribir `produccion`, la vía normal
+es **revertir en `main`** (PR con `git revert`), esperar los checks y liberar ese commit
+con el script. En una emergencia, desactiva un momento "Block force pushes" del ruleset,
+devuelve la rama al commit anterior (`git push --force-with-lease origin <commit>:produccion`)
+y **vuélvelo a activar**. Las migraciones solo agregan, así que revertir el código no
+exige tocar la base.
 
 **Agregar un sitio de producción nuevo:**
 
 1. hPanel: crear el sitio Node.js y **una base de datos nueva** para él.
 2. Variables de entorno (sección 3): `DB_*` de **su** base, un `JWT_SECRET`
    **propio** (si dos sitios comparten secreto, un token de uno sirve en el
-   otro), `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` del administrador de esa
-   empresa y `RNDC_*` / `COLA_*` de esa empresa.
+   otro), `SITE_ID` único, `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` del administrador
+   de esa empresa, `RNDC_*` / `COLA_*` de esa empresa y `PLATFORM_OWNER_UUID` de **tu**
+   cuenta en **esa** base (existe después de la migración v57).
 3. phpMyAdmin: importar en esa base **un solo archivo**, `instalacion_nueva.sql`,
    que trae todo en orden (esquema, catálogos, municipios, migraciones y
    productos). Se genera con `node database/generar_instalacion.mjs` (no se
    versiona). Solo para bases vacías.
 4. Configuración de compilación igual a la de los demás sitios: punto de
    entrada `backend/dist/server.js`, salida `backend/dist`, script `build`.
-5. Conectar el despliegue a la rama **`produccion`** (no `main`). El primer
-   arranque crea el administrador (sección 4).
+5. Crear su rama con el primer release (`node scripts/release.mjs prod-03 --confirmar`
+   la crea en el commit probado) y conectar el despliegue del sitio a **esa** rama (no a
+   `main`). El primer arranque crea el administrador (sección 4).
 6. Cron del worker para ese sitio (sección 5).
 
 ---
@@ -202,7 +248,7 @@ en el código (`backend/src/app.ts` sirve `frontend/dist/` estático + hace
 fallback a `index.html` para las rutas de React Router, si esa carpeta
 existe en el build).
 
-Al conectar el repo (`https://github.com/grachos/TMS-TechCol`, rama `main`),
+Al conectar el repo (la rama que corresponda a ese sitio: `main` en pruebas, `produccion` / `prod-<id>` en producción),
 configura:
 
 | Campo | Valor |
