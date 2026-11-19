@@ -4,6 +4,7 @@
  * via the plate, so they may be omitted.
  */
 
+import { revisarRechazoRndc } from '../chat/avisoErrorSinGuia.js';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { db } from '../../db/pool.js';
 import { RndcClient } from '../../rndc/RndcClient.js';
@@ -160,6 +161,7 @@ export async function registrarEnRndc(id: number): Promise<RndcRespuesta> {
   };
 
   const resp = await rndc.ingresar(12, vars);
+  if (!resp.ok) revisarRechazoRndc(resp.error);
 
   await db().query('UPDATE vehiculo SET estado_rndc = :estado, rndc_ingreso_id = :ing, rndc_error = :err WHERE id = :id', {
     estado: resp.ok ? 'registrado' : 'error',

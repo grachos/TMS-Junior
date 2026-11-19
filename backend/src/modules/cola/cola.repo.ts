@@ -15,6 +15,7 @@
  * typed structs — verify column names against the live DB.
  */
 
+import { revisarRechazoRndc } from '../chat/avisoErrorSinGuia.js';
 import type { Pool, PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import { db, withTransaction } from '../../db/pool.js';
 import { config } from '../../config/env.js';
@@ -1255,6 +1256,8 @@ async function aplicarResultado(row: Row, resp: RndcRespuesta, minutos: number):
   if (await remediarObservacionesCortas(row, resp)) return;
   // ¿O rechaza porque el cumplido normal sigue activo (se canceló ese paso antes)?
   if (await remediarCumplidoPendienteAntesDeAnular(row, resp)) return;
+  // El Ministerio rechazó con un error: si no está en el diccionario, se avisa al soporte (sin esperar, sin afectar el reintento).
+  revisarRechazoRndc(resp.error);
   const intentos = Number(row.intentos) + 1;
   const agotado = intentos >= Number(row.max_intentos);
   if (agotado) {
