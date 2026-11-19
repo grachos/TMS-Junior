@@ -29,7 +29,7 @@ const tarifaSchema = z.object({
     .transform((v) => (typeof v === 'string' ? Number(v.replace(',', '.')) : v))
     .pipe(
       z
-        .number({ invalid_type_error: 'La tarifa debe ser un número.' })
+        .number({ error: 'La tarifa debe ser un número.' })
         .finite('La tarifa debe ser un número.')
         .min(0, 'La tarifa no puede ser negativa.')
         .max(100, 'La tarifa por mil no puede superar 100.')
