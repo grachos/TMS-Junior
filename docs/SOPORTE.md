@@ -305,5 +305,6 @@ El chat explica por qué un manifiesto no subió al RNDC y qué hacer, con la he
 
 - **Cómo busca:** por el código del error (`MAN045`). Un mismo código puede tener varios significados (p. ej. `MAN055`), así que si hay varios se elige por parecido del mensaje real con el del diccionario; si no hay uno claro, el chat presenta las opciones y no adivina.
 - **Error que no está en el diccionario** (código desconocido, o código conocido con un significado nuevo): el chat lo dice con honestidad y **se registra un incidente `rndc` para el propietario** (con aviso push la primera vez; uno por código, no se repite). No pasa al agente de código.
+- **El aviso sale al momento del rechazo**, sin esperar a que alguien pregunte: la cola, el registro de terceros y el de vehículos llaman a `revisarRechazoRndc`, que no espera ni cambia el envío y no repite el aviso del mismo error durante 10 minutos. Las fallas de conexión (sin código del Ministerio) no avisan.
 - **Para actualizar el diccionario:** reemplaza `docs/diccionario_errores_rndc.tsv` por el nuevo maestro (UTF-8) y ejecuta `node scripts/generar-diccionario-errores.mjs`; luego PR → `main` → pruebas → release. Una prueba falla si el generado no coincide con el `.tsv`.
 - **Pasos ampliados a mano** para errores frecuentes: `AMPLIACIONES` en `erroresRndc.ts` (hoy `MAN045`).

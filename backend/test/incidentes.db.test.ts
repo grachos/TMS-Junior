@@ -247,7 +247,8 @@ describe.skipIf(!RUN)('incidentes y reportes (fase 2a)', () => {
     const r = await llamar('opera', 'POST', '/api/reportes', { texto: 'No me deja guardar la solicitud', pantalla: '/solicitudes/123/editar' });
     expect(r.status).toBe(201);
     const v = (await r.json()) as { id: number; estado: { codigo: string; etiqueta: string }; pantalla: string };
-    expect(v.estado).toEqual({ codigo: 'nuevo', etiqueta: 'Recibido' });
+    // El diagnóstico automático corre en segundo plano y puede pasar el incidente a «En revisión» antes de que se lea la respuesta: ambos estados son válidos.
+    expect([{ codigo: 'nuevo', etiqueta: 'Recibido' }, { codigo: 'en_diagnostico', etiqueta: 'En revisión' }]).toContainEqual(v.estado);
     expect(v.pantalla).toBe('/solicitudes/:id/editar');
   });
 
