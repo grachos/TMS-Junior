@@ -190,6 +190,36 @@ describe.skipIf(!RUN)('chat de datos: herramientas tipadas y autorización del s
     }
   });
 
+  it('explicar_error_manifiesto: devuelve el error del Ministerio con su guía, sin secretos ni el XML, y respeta el permiso', async () => {
+    const ctx = contextoDe({ sub: ids.admin!, rol: 'admin', paginas: null });
+    const num = `MAN-E${azar(3)}`; const numSin = `MAN-S${azar(3)}`; const secreto = `s${azar(8)}`;
+    const [sol] = await db().query<ResultSetHeader>("INSERT INTO solicitud_servicio (fecha_solicitud, cantidad_vehiculos, cantidad_vehiculos_original, estado) VALUES (CURDATE(), 0, 1, 'despachada')");
+    const [m] = await db().query<ResultSetHeader>("INSERT INTO manifiesto (solicitud_id, num_manifiesto, valor_flete_pactado, estado_rndc) VALUES (?, ?, 4110855, 'rechazado')", [sol.insertId, num]);
+    await db().query("INSERT INTO manifiesto (solicitud_id, num_manifiesto) VALUES (?, ?)", [sol.insertId, numSin]);
+    await db().query("INSERT INTO cola_envios (tipo_documento, referencia_id, manifiesto_id, payload_xml, estado, ultimo_error) VALUES ('manifiesto', ?, ?, ?, 'error', ?)",
+      [m.insertId, m.insertId, `<xml>${secreto}</xml>`, 'MAN045: El flete pactado se encuentra por debajo de los costos eficientes de operación']);
+    const secretoMsg = `t${azar(8)}`; const correoMsg = `x${azar(3)}@ejemplo.test`;
+    await db().query("INSERT INTO cola_envios (tipo_documento, referencia_id, manifiesto_id, payload_xml, estado, ultimo_error) VALUES ('manifiesto', ?, ?, '<x/>', 'error', ?)",
+      [m.insertId, m.insertId, `MAN045: fallo token=${secretoMsg} contacto ${correoMsg}`]);
+    const r = JSON.parse(await ejecutarHerramienta(ctx, 'explicar_error_manifiesto', JSON.stringify({ numero: num }))) as { filas: { encontrado: boolean; manifiesto: { valor_flete_pactado: unknown }; envios_con_error: { codigo_error: string; guia: { pasos_para_corregir: string[] } | null }[] }[] };
+    const f = r.filas[0]!;
+    expect(f.encontrado).toBe(true);
+    expect(Number(f.manifiesto.valor_flete_pactado)).toBe(4110855);
+    expect(f.envios_con_error[0]!.codigo_error).toBe('MAN045');
+    expect(JSON.stringify(r)).not.toContain(secretoMsg); // el mensaje del Ministerio también se sanitiza (tokens, correos)
+    expect(JSON.stringify(r)).not.toContain(correoMsg);
+    expect(f.envios_con_error[0]!.guia!.pasos_para_corregir.length).toBeGreaterThan(0);
+    expect(JSON.stringify(r)).not.toContain(secreto); // nunca el XML enviado
+    const sin = JSON.parse(await ejecutarHerramienta(ctx, 'explicar_error_manifiesto', JSON.stringify({ numero: numSin }))) as { filas: { envios_con_error: unknown[]; nota?: string }[] };
+    expect(sin.filas[0]!.envios_con_error).toEqual([]);
+    expect((JSON.parse(await ejecutarHerramienta(ctx, 'explicar_error_manifiesto', JSON.stringify({ numero: 'NO-EXISTE-1' }))) as { filas: { encontrado: boolean }[] }).filas[0]!.encontrado).toBe(false);
+    // Sin la página "despachos" no existe para ese usuario.
+    const sinPermiso = contextoDe({ sub: ids.admin!, rol: 'operador', paginas: ['terceros'] });
+    expect(JSON.parse(await ejecutarHerramienta(sinPermiso, 'explicar_error_manifiesto', JSON.stringify({ numero: num })))).toEqual({ error: 'Esa herramienta no está disponible para tu usuario.' });
+    await db().query('DELETE FROM cola_envios WHERE manifiesto_id = ?', [m.insertId]);
+    await db().query('DELETE FROM solicitud_servicio WHERE id = ?', [sol.insertId]); // borra sus manifiestos (ON DELETE CASCADE)
+  });
+
   it('los argumentos se validan: fechas, límites, valores fuera de lista y campos extra se rechazan sin consultar', async () => {
     const ctx = contextoDe({ sub: ids.admin!, rol: 'admin', paginas: null });
     for (const [n, a] of [['buscar_solicitudes', { desde: '31/12/2025' }], ['buscar_solicitudes', { desde: '2025-13-45' }], ['buscar_solicitudes', { limite: 9999 }], ['buscar_solicitudes', { estado: "borrador' OR 1=1 --" }], ['buscar_manifiestos', { sql: 'SELECT 1' }], ['buscar_terceros', { texto: 'x'.repeat(200) }]] as const) {

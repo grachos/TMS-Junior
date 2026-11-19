@@ -13,7 +13,9 @@
 import { z } from 'zod';
 import { tienePagina } from '../auth/auth.middleware.js';
 import type { Pagina, Rol } from '../auth/auth.repo.js';
+import { sanitizarTexto } from '../incidentes/sanitizar.js';
 import { consultarSoloLectura, escaparLike } from './chat.repo.js';
+import { extraerCodigoRndc, guiaDeError } from './erroresRndc.js';
 
 /** Identidad del usuario que pregunta. SIEMPRE se arma en el servidor (req.user, releído de la base en cada petición). */
 export interface ContextoChat {
@@ -104,6 +106,34 @@ export const HERRAMIENTAS: Herramienta[] = [
     ejecutar: async (a) => {
       const w = donde([['num_manifiesto LIKE ?', a.numero === undefined ? undefined : `${escaparLike(a.numero)}%`], ['placa_vehiculo = ?', a.placa?.toUpperCase()], ['estado_rndc = ?', a.estado_rndc], ['cumplido_estado_rndc = ?', a.cumplido_estado_rndc], desde('created_at', a.desde), hasta('created_at', a.hasta)]);
       return consultarSoloLectura(`SELECT id, solicitud_id, num_manifiesto, placa_vehiculo, estado_rndc, cumplido_estado_rndc, valor_flete_pactado, fecha_expedicion, created_at FROM manifiesto ${w.sql} ORDER BY id DESC LIMIT ?`, [...w.valores, a.limite]);
+    },
+  },
+  {
+    nombre: 'explicar_error_manifiesto', pagina: 'despachos', tablas: ['manifiesto', 'cola_envios'],
+    descripcion: 'Explica por qué un manifiesto NO subió al RNDC: devuelve el mensaje del Ministerio de sus envíos con error y, si el código está en la guía, el significado, la causa y los pasos para corregirlo. Úsala para "¿por qué no migró el manifiesto X?" o "¿qué significa el error X?".',
+    parametros: { type: 'object', properties: { numero: pTexto('Número exacto del manifiesto.') }, additionalProperties: false, required: ['numero'] },
+    schema: z.object({ numero: texto() }).strict(),
+    ejecutar: async (a) => {
+      const m = await consultarSoloLectura('SELECT id, num_manifiesto, placa_vehiculo, estado_rndc, valor_flete_pactado FROM manifiesto WHERE num_manifiesto = ? LIMIT 1', [a.numero]);
+      const man = m[0];
+      if (!man) return [{ encontrado: false, nota: 'No existe un manifiesto con ese número.' }];
+      const envios = await consultarSoloLectura(
+        `SELECT id, tipo_documento, estado, intentos, ultimo_error, created_at FROM cola_envios
+         WHERE manifiesto_id = ? AND ultimo_error IS NOT NULL ORDER BY id DESC LIMIT 3`, [Number(man.id)]);
+      return [{
+        encontrado: true,
+        manifiesto: { numero: man.num_manifiesto, placa: man.placa_vehiculo, estado_rndc: man.estado_rndc, valor_flete_pactado: man.valor_flete_pactado },
+        envios_con_error: envios.map((e) => {
+          const mensaje = sanitizarTexto(e.ultimo_error, 500);
+          const guia = guiaDeError(mensaje);
+          return {
+            envio_id: e.id, tipo_documento: e.tipo_documento, estado: e.estado, intentos: e.intentos, fecha: e.created_at,
+            codigo_error: extraerCodigoRndc(mensaje), mensaje_del_ministerio: mensaje,
+            guia: guia ? { significado: guia.significado, causa: guia.causa, pasos_para_corregir: guia.solucion, campos_a_revisar: guia.campos ?? [] } : null,
+          };
+        }),
+        nota: envios.length ? undefined : 'El manifiesto no tiene envíos con error registrado.',
+      }];
     },
   },
   {
