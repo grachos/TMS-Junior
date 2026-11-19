@@ -200,16 +200,33 @@ describe.skipIf(!RUN)('chat de datos: herramientas tipadas y autorización del s
       [m.insertId, m.insertId, `<xml>${secreto}</xml>`, 'MAN045: El flete pactado se encuentra por debajo de los costos eficientes de operación']);
     const secretoMsg = `t${azar(8)}`; const correoMsg = `x${azar(3)}@ejemplo.test`;
     await db().query("INSERT INTO cola_envios (tipo_documento, referencia_id, manifiesto_id, payload_xml, estado, ultimo_error) VALUES ('manifiesto', ?, ?, '<x/>', 'error', ?)",
-      [m.insertId, m.insertId, `MAN045: fallo token=${secretoMsg} contacto ${correoMsg}`]);
-    const r = JSON.parse(await ejecutarHerramienta(ctx, 'explicar_error_manifiesto', JSON.stringify({ numero: num }))) as { filas: { encontrado: boolean; manifiesto: { valor_flete_pactado: unknown }; envios_con_error: { codigo_error: string; guia: { pasos_para_corregir: string[] } | null }[] }[] };
+      [m.insertId, m.insertId, `MAN045: La Empresa de Transporte únicamente podrá expedir Manifiestos de Carga que registren un valor a pagar igual o superior a los costos eficientes de operación de SiceTac. token=${secretoMsg} contacto ${correoMsg}`]);
+    const r = JSON.parse(await ejecutarHerramienta(ctx, 'explicar_error_manifiesto', JSON.stringify({ numero: num }))) as { filas: { encontrado: boolean; manifiesto: { valor_flete_pactado: unknown }; envios_con_error: { codigo_error: string; guia: { solucion_oficial: string; pasos_ampliados: string[] } | null }[] }[] };
     const f = r.filas[0]!;
     expect(f.encontrado).toBe(true);
     expect(Number(f.manifiesto.valor_flete_pactado)).toBe(4110855);
     expect(f.envios_con_error[0]!.codigo_error).toBe('MAN045');
     expect(JSON.stringify(r)).not.toContain(secretoMsg); // el mensaje del Ministerio también se sanitiza (tokens, correos)
     expect(JSON.stringify(r)).not.toContain(correoMsg);
-    expect(f.envios_con_error[0]!.guia!.pasos_para_corregir.length).toBeGreaterThan(0);
+    expect(f.envios_con_error.every((e: { estado_guia?: string }) => e.estado_guia === 'encontrada')).toBe(true);
+    const sinIncidenteConocido = await db().query<RowDataPacket[]>("SELECT id FROM incidentes WHERE sitio = ? AND tipo = 'rndc' AND codigo = 'MAN045'", [process.env.SITE_ID]);
+    expect(sinIncidenteConocido[0]).toHaveLength(0); // un error que SÍ está en el diccionario no avisa a nadie
+    expect(f.envios_con_error[0]!.guia!.solucion_oficial).toMatch(/SiceTac/i);
+    expect(f.envios_con_error[0]!.guia!.pasos_ampliados.length).toBeGreaterThan(0);
     expect(JSON.stringify(r)).not.toContain(secreto); // nunca el XML enviado
+    // Error que el diccionario NO conoce: avisa al soporte (un solo incidente por código, aunque se pregunte varias veces).
+    const codNuevo = `QZX${String(Math.floor(Math.random() * 900) + 100)}`;
+    const [m2] = await db().query<ResultSetHeader>("INSERT INTO manifiesto (solicitud_id, num_manifiesto) VALUES (?, ?)", [sol.insertId, `MAN-N${azar(3)}`]);
+    await db().query("INSERT INTO cola_envios (tipo_documento, referencia_id, manifiesto_id, payload_xml, estado, ultimo_error) VALUES ('manifiesto', ?, ?, '<x/>', 'error', ?)", [m2.insertId, m2.insertId, `${codNuevo}: una regla nueva que el Ministerio acaba de publicar`]);
+    const numNuevo = String((await db().query<RowDataPacket[]>('SELECT num_manifiesto FROM manifiesto WHERE id = ?', [m2.insertId]))[0][0]!.num_manifiesto);
+    for (let i = 0; i < 2; i++) {
+      const n = JSON.parse(await ejecutarHerramienta(ctx, 'explicar_error_manifiesto', JSON.stringify({ numero: numNuevo }))) as { filas: { envios_con_error: { estado_guia: string; guia: unknown; nota: string }[] }[] };
+      const e0 = n.filas[0]!.envios_con_error[0]!;
+      expect(e0.estado_guia).toBe('desconocido'); expect(e0.guia).toBeNull(); expect(e0.nota).toMatch(/soporte/);
+    }
+    const [inc] = await db().query<RowDataPacket[]>("SELECT id, ocurrencias, corregible FROM incidentes WHERE sitio = ? AND tipo = 'rndc' AND codigo = ?", [process.env.SITE_ID, codNuevo]);
+    expect(inc).toHaveLength(1); expect(Number(inc[0]!.ocurrencias)).toBe(2); expect(Number(inc[0]!.corregible)).toBe(0); // no pasa al agente de código
+    await db().query('DELETE FROM incidentes WHERE id = ?', [inc[0]!.id]);
     const sin = JSON.parse(await ejecutarHerramienta(ctx, 'explicar_error_manifiesto', JSON.stringify({ numero: numSin }))) as { filas: { envios_con_error: unknown[]; nota?: string }[] };
     expect(sin.filas[0]!.envios_con_error).toEqual([]);
     expect((JSON.parse(await ejecutarHerramienta(ctx, 'explicar_error_manifiesto', JSON.stringify({ numero: 'NO-EXISTE-1' }))) as { filas: { encontrado: boolean }[] }).filas[0]!.encontrado).toBe(false);

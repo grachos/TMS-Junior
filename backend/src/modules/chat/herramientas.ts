@@ -15,7 +15,8 @@ import { tienePagina } from '../auth/auth.middleware.js';
 import type { Pagina, Rol } from '../auth/auth.repo.js';
 import { sanitizarTexto } from '../incidentes/sanitizar.js';
 import { consultarSoloLectura, escaparLike } from './chat.repo.js';
-import { extraerCodigoRndc, guiaDeError } from './erroresRndc.js';
+import { avisarErrorSinGuia } from './avisoErrorSinGuia.js';
+import { buscarGuia, type EntradaDiccionario } from './erroresRndc.js';
 
 /** Identidad del usuario que pregunta. SIEMPRE se arma en el servidor (req.user, releído de la base en cada petición). */
 export interface ContextoChat {
@@ -120,18 +121,26 @@ export const HERRAMIENTAS: Herramienta[] = [
       const envios = await consultarSoloLectura(
         `SELECT id, tipo_documento, estado, intentos, ultimo_error, created_at FROM cola_envios
          WHERE manifiesto_id = ? AND ultimo_error IS NOT NULL ORDER BY id DESC LIMIT 3`, [Number(man.id)]);
+      const oficial = (e: EntradaDiccionario) => ({ significado: e.mensaje, variable: e.variable, proceso: e.proceso, solucion_oficial: e.solucion || null });
+      const lista = [];
+      for (const e of envios) {
+        const mensaje = sanitizarTexto(e.ultimo_error, 500);
+        const g = buscarGuia(mensaje);
+        // Error que el diccionario no conoce: se avisa al dueño de la herramienta (soporte) para que lo agregue.
+        if (g.estado === 'desconocido' || g.estado === 'variante_nueva') await avisarErrorSinGuia(g.estado, g.codigo, mensaje);
+        lista.push({
+          envio_id: e.id, tipo_documento: e.tipo_documento, estado: e.estado, intentos: e.intentos, fecha: e.created_at,
+          codigo_error: g.estado === 'sin_codigo' ? null : g.codigo, mensaje_del_ministerio: mensaje, estado_guia: g.estado,
+          guia: g.estado === 'encontrada' ? { ...oficial(g.entrada), pasos_ampliados: g.ampliacion } : null,
+          opciones_posibles: g.estado === 'ambigua' ? g.candidatas.map(oficial) : undefined,
+          nota: g.estado === 'desconocido' || g.estado === 'variante_nueva' ? 'Este error no está en la guía de errores del Ministerio; ya se avisó al soporte para agregarlo.'
+            : g.estado === 'sin_codigo' ? 'El mensaje no trae un código del Ministerio (puede ser una falla de conexión u otra causa).' : undefined,
+        });
+      }
       return [{
         encontrado: true,
         manifiesto: { numero: man.num_manifiesto, placa: man.placa_vehiculo, estado_rndc: man.estado_rndc, valor_flete_pactado: man.valor_flete_pactado },
-        envios_con_error: envios.map((e) => {
-          const mensaje = sanitizarTexto(e.ultimo_error, 500);
-          const guia = guiaDeError(mensaje);
-          return {
-            envio_id: e.id, tipo_documento: e.tipo_documento, estado: e.estado, intentos: e.intentos, fecha: e.created_at,
-            codigo_error: extraerCodigoRndc(mensaje), mensaje_del_ministerio: mensaje,
-            guia: guia ? { significado: guia.significado, causa: guia.causa, pasos_para_corregir: guia.solucion, campos_a_revisar: guia.campos ?? [] } : null,
-          };
-        }),
+        envios_con_error: lista,
         nota: envios.length ? undefined : 'El manifiesto no tiene envíos con error registrado.',
       }];
     },
