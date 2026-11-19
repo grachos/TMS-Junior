@@ -2,6 +2,7 @@
  * Light TMS - Terceros data access (RNDC proceso 11). Port of TerceroRepo.php.
  */
 
+import { revisarRechazoRndc } from '../chat/avisoErrorSinGuia.js';
 import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { db } from '../../db/pool.js';
 import { RndcClient } from '../../rndc/RndcClient.js';
@@ -174,6 +175,7 @@ export async function registrarEnRndc(id: number): Promise<RndcRespuesta> {
   };
 
   const resp = await rndc.ingresar(11, vars);
+  if (!resp.ok) revisarRechazoRndc(resp.error);
 
   await db().query('UPDATE tercero SET estado_rndc = :estado, rndc_ingreso_id = :ing, rndc_error = :err WHERE id = :id', {
     estado: resp.ok ? 'registrado' : 'error',
