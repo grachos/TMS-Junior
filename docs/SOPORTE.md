@@ -298,3 +298,12 @@ Hostinger crea una **vista previa por cada pull request** (por ejemplo `measured
 
 Pendiente: llevar todo a producción (con tu "release" explícito), aplicando antes las migraciones v54–v61 y las variables en ese sitio.
 El chat actual de datos **no** tiene herramientas técnicas: cuando las haya, vivirán solo en el contexto del propietario.
+
+## Diccionario de errores del Ministerio (chat)
+
+El chat explica por qué un manifiesto no subió al RNDC y qué hacer, con la herramienta `explicar_error_manifiesto`. No inventa: usa el **Maestro Diccionario de Errores RNDC** (`docs/diccionario_errores_rndc.tsv`, ~1.370 filas; el generado vive en `backend/src/modules/chat/diccionarioErroresRndc.data.ts`).
+
+- **Cómo busca:** por el código del error (`MAN045`). Un mismo código puede tener varios significados (p. ej. `MAN055`), así que si hay varios se elige por parecido del mensaje real con el del diccionario; si no hay uno claro, el chat presenta las opciones y no adivina.
+- **Error que no está en el diccionario** (código desconocido, o código conocido con un significado nuevo): el chat lo dice con honestidad y **se registra un incidente `rndc` para el propietario** (con aviso push la primera vez; uno por código, no se repite). No pasa al agente de código.
+- **Para actualizar el diccionario:** reemplaza `docs/diccionario_errores_rndc.tsv` por el nuevo maestro (UTF-8) y ejecuta `node scripts/generar-diccionario-errores.mjs`; luego PR → `main` → pruebas → release. Una prueba falla si el generado no coincide con el `.tsv`.
+- **Pasos ampliados a mano** para errores frecuentes: `AMPLIACIONES` en `erroresRndc.ts` (hoy `MAN045`).
